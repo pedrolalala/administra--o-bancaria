@@ -11,6 +11,14 @@ import { parseCnab400 } from '@/lib/cnab-parser'
 import { Info, CheckCircle, AlertCircle, Database, Building } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { supabase } from '@/lib/supabase/client'
 
 export default function Index() {
@@ -21,7 +29,13 @@ export default function Index() {
   const [currentFileName, setCurrentFileName] = useState<string | null>('RETORNO_DEMO_01.RET')
 
   const [empresas, setEmpresas] = useState<any[]>([])
-  const [identifiedCompany, setIdentifiedCompany] = useState<any | null>(null)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
+
+  const selectedCompany = useMemo(
+    () => empresas.find((e) => e.id === selectedCompanyId) || null,
+    [empresas, selectedCompanyId],
+  )
+
   const [validationError, setValidationError] = useState<string | null>(null)
 
   const [exceptions, setExceptions] = useState<{ nossoNumero: string; tipo: string }[]>([])
@@ -42,12 +56,12 @@ export default function Index() {
   }, [])
 
   useEffect(() => {
-    if (currentFileName && identifiedCompany) {
+    if (currentFileName && selectedCompany) {
       supabase
         .from('retornos_processados')
         .select('id')
         .eq('nome_arquivo', currentFileName)
-        .eq('empresa_id', identifiedCompany.id)
+        .eq('empresa_id', selectedCompany.id)
         .maybeSingle()
         .then(({ data }) => {
           setIsAlreadyProcessedState(!!data)
@@ -55,11 +69,11 @@ export default function Index() {
     } else {
       setIsAlreadyProcessedState(false)
     }
-  }, [currentFileName, identifiedCompany])
+  }, [currentFileName, selectedCompany])
 
   const canProcess = useMemo(() => {
-    return !isAlreadyProcessedState && !processSuccess && identifiedCompany && !validationError
-  }, [isAlreadyProcessedState, processSuccess, identifiedCompany, validationError])
+    return !isAlreadyProcessedState && !processSuccess && selectedCompany && !validationError
+  }, [isAlreadyProcessedState, processSuccess, selectedCompany, validationError])
 
   const handleProcessFile = useCallback(
     (content: string, fileName: string) => {
@@ -72,25 +86,11 @@ export default function Index() {
         setProcessSuccess(null)
         setValidationError(null)
 
-        if (parsed.cnpjEmpresa) {
-          const match = empresas.find((e) => {
-            const dbCnpj = e.cnpj?.replace(/\D/g, '')
-            return dbCnpj === parsed.cnpjEmpresa
+        if (selectedCompany) {
+          toast({
+            title: 'Arquivo processado',
+            description: `${selectedCompany.nome} - ${parsed.records.length} registros encontrados.`,
           })
-
-          if (match) {
-            setIdentifiedCompany(match)
-            toast({
-              title: 'Empresa identificada',
-              description: `${match.nome} - ${parsed.records.length} registros encontrados.`,
-            })
-          } else {
-            setIdentifiedCompany(null)
-            setValidationError('Empresa não cadastrada. Verifique o CNPJ do arquivo.')
-          }
-        } else {
-          setIdentifiedCompany(null)
-          setValidationError('CNPJ não encontrado no cabeçalho do arquivo.')
         }
       } catch (error) {
         toast({
@@ -101,7 +101,7 @@ export default function Index() {
         })
       }
     },
-    [toast, empresas],
+    [toast, selectedCompany],
   )
 
   const handleError = useCallback(
@@ -116,7 +116,7 @@ export default function Index() {
   )
 
   const handleConfirmarBaixa = useCallback(async () => {
-    if (!currentFileName || isAlreadyProcessedState || !identifiedCompany) return
+    if (!currentFileName || isAlreadyProcessedState || !selectedCompany) return
     let liquidacoesProcessed = 0
     let confirmacoesProcessed = 0
     const newExceptions: { nossoNumero: string; tipo: string }[] = []
@@ -124,7 +124,7 @@ export default function Index() {
     const { data: existingBoletos } = await supabase
       .from('boletos')
       .select('id, nosso_numero')
-      .eq('empresa_id', identifiedCompany.id)
+      .eq('empresa_id', selectedCompany.id)
 
     for (const record of data.records) {
       const boleto = existingBoletos?.find((b) => b.nosso_numero === record.nossoNumero)
@@ -161,7 +161,7 @@ export default function Index() {
     await supabase.from('retornos_processados').insert([
       {
         nome_arquivo: currentFileName,
-        empresa_id: identifiedCompany.id,
+        empresa_id: selectedCompany.id,
         quantidade_liquidacoes: liquidacoesProcessed,
         quantidade_confirmacoes: confirmacoesProcessed,
         processado: true,
@@ -176,7 +176,7 @@ export default function Index() {
       title: 'Baixa concluída',
       description: `Processamento finalizado com sucesso.`,
     })
-  }, [currentFileName, isAlreadyProcessedState, data.records, identifiedCompany, toast])
+  }, [currentFileName, isAlreadyProcessedState, data.records, selectedCompany, toast])
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20">
@@ -200,7 +200,27 @@ export default function Index() {
         </TabsList>
 
         <TabsContent value="process" className="space-y-8">
-          <UploadZone onFileProcess={handleProcessFile} onError={handleError} />
+          <div className="flex flex-col gap-3 max-w-md">
+            <Label htmlFor="company-select">Empresa Alvo do Processamento *</Label>
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger id="company-select" className="w-full">
+                <SelectValue placeholder="Selecione uma empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {empresas.map((empresa) => (
+                  <SelectItem key={empresa.id} value={empresa.id}>
+                    {empresa.nome} ({empresa.cnpj || 'Sem CNPJ'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <UploadZone
+            onFileProcess={handleProcessFile}
+            onError={handleError}
+            companySelected={!!selectedCompanyId}
+          />
 
           {isDemo && (
             <Alert className="bg-sky-50 border-sky-200 text-sky-800 animate-slide-down">
@@ -224,24 +244,13 @@ export default function Index() {
             </Alert>
           )}
 
-          {identifiedCompany && !validationError && (
-            <Alert className="bg-blue-50 border-blue-200 text-blue-900 animate-slide-down">
-              <Building className="h-4 w-4 text-blue-600" />
-              <AlertTitle>Empresa Identificada</AlertTitle>
-              <AlertDescription className="text-blue-800">
-                Arquivo associado à empresa: <strong>{identifiedCompany.nome}</strong> (CNPJ:{' '}
-                {identifiedCompany.cnpj})
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {isAlreadyProcessedState && identifiedCompany && (
+          {isAlreadyProcessedState && selectedCompany && (
             <Alert variant="destructive" className="animate-slide-down">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Arquivo já processado</AlertTitle>
               <AlertDescription>
                 O arquivo <strong>{currentFileName}</strong> já foi processado anteriormente para a
-                empresa identificada. A baixa de títulos não pode ser realizada novamente para o
+                empresa selecionada. A baixa de títulos não pode ser realizada novamente para o
                 mesmo arquivo.
               </AlertDescription>
             </Alert>
@@ -286,14 +295,14 @@ export default function Index() {
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-emerald-500" />
-                Resumo Financeiro {identifiedCompany ? `- ${identifiedCompany.nome}` : ''}
+                Resumo Financeiro {selectedCompany ? `- ${selectedCompany.nome}` : ''}
               </h3>
               <SummaryCards summary={data.summary} />
             </div>
 
             <div>
               <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos</h3>
-              <DataTable records={data.records} empresaNome={identifiedCompany?.nome} />
+              <DataTable records={data.records} empresaNome={selectedCompany?.nome} />
             </div>
           </div>
         </TabsContent>

@@ -7,15 +7,12 @@ export function parseCnab400(content: string): CnabData {
   let totalLiquidacoes = 0
   let totalConfirmacoes = 0
   let valorTotalRecebido = 0
-  let cnpjEmpresa = ''
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
     // Header record (Type 0)
     if (line.substring(0, 1) === '0') {
-      const rawCnpj = line.substring(3, 17)
-      cnpjEmpresa = rawCnpj.replace(/\D/g, '')
       continue
     }
 
@@ -64,7 +61,6 @@ export function parseCnab400(content: string): CnabData {
   }
 
   return {
-    cnpjEmpresa,
     records,
     summary: {
       totalLiquidacoes,

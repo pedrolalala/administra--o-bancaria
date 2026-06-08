@@ -5,16 +5,28 @@ import { cn } from '@/lib/utils'
 interface UploadZoneProps {
   onFileProcess: (content: string, fileName: string) => void
   onError: (msg: string) => void
+  companySelected: boolean
 }
 
-export function UploadZone({ onFileProcess, onError }: UploadZoneProps) {
+export function UploadZone({ onFileProcess, onError, companySelected }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const checkCompanySelected = () => {
+    if (!companySelected) {
+      onError('Selecione uma empresa antes de enviar o arquivo.')
+      return false
+    }
+    return true
+  }
+
   const handleFile = (file: File) => {
-    if (!file.name.toUpperCase().endsWith('.RET') && !file.name.toUpperCase().endsWith('.TXT')) {
-      onError('Formato de arquivo inválido. Por favor, envie um arquivo .RET ou .TXT.')
+    if (!checkCompanySelected()) return
+
+    const upperName = file.name.toUpperCase()
+    if (!upperName.endsWith('.RET') && !upperName.endsWith('.TXT') && !upperName.endsWith('.REM')) {
+      onError('Formato de arquivo inválido. Por favor, envie um arquivo .RET, .TXT ou .REM.')
       return
     }
 
@@ -60,6 +72,11 @@ export function UploadZone({ onFileProcess, onError }: UploadZoneProps) {
     }
   }
 
+  const handleClick = () => {
+    if (!checkCompanySelected()) return
+    fileInputRef.current?.click()
+  }
+
   return (
     <div
       className={cn(
@@ -71,11 +88,11 @@ export function UploadZone({ onFileProcess, onError }: UploadZoneProps) {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      onClick={() => fileInputRef.current?.click()}
+      onClick={handleClick}
     >
       <input
         type="file"
-        accept=".ret,.txt"
+        accept=".ret,.txt,.rem"
         className="hidden"
         ref={fileInputRef}
         onChange={onInputChange}
@@ -92,7 +109,7 @@ export function UploadZone({ onFileProcess, onError }: UploadZoneProps) {
       <p className="text-sm text-muted-foreground text-center max-w-sm">
         {fileName
           ? 'Clique para carregar um arquivo diferente'
-          : 'Selecione um arquivo de retorno Bradesco CNAB 400 (.RET ou .TXT)'}
+          : 'Selecione um arquivo de retorno Bradesco CNAB 400 (.RET, .TXT ou .REM)'}
       </p>
     </div>
   )
