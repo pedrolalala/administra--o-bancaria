@@ -1,13 +1,47 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CnabSummary } from '@/types/cnab'
 import { formatCurrency } from '@/lib/mock-data'
-import { CheckCircle2, Info, Wallet } from 'lucide-react'
+import { CheckCircle2, Info, Wallet, FileSpreadsheet } from 'lucide-react'
 
 interface SummaryCardsProps {
   summary: CnabSummary
 }
 
 export function SummaryCards({ summary }: SummaryCardsProps) {
+  if (summary.fileType === 'REMESSA') {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Títulos
+            </CardTitle>
+            <FileSpreadsheet className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.totalRegistros}</div>
+            <p className="text-xs text-muted-foreground mt-1">Registros no arquivo</p>
+          </CardContent>
+        </Card>
+
+        <Card className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Valor Total da Remessa
+            </CardTitle>
+            <Wallet className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(summary.valorTotal)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Soma de todos os títulos</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <Card className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
@@ -45,7 +79,7 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-primary">
-            {formatCurrency(summary.valorTotalRecebido)}
+            {formatCurrency(summary.valorTotalRecebido || 0)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Soma de todas as liquidações</p>
         </CardContent>

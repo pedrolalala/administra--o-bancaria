@@ -2,14 +2,12 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { UploadZone } from '@/components/cnab/UploadZone'
 import { SummaryCards } from '@/components/cnab/SummaryCards'
 import { DataTable } from '@/components/cnab/DataTable'
-import { BoletosTable } from '@/components/cnab/BoletosTable'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { CnabData } from '@/types/cnab'
 import { parseCnab400 } from '@/lib/cnab-parser'
-import { CheckCircle, AlertCircle, Database } from 'lucide-react'
+import { CheckCircle, AlertCircle, FileUp } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -40,9 +38,11 @@ export default function Index() {
   const [processSuccess, setProcessSuccess] = useState<{
     liquidacoes: number
     confirmacoes: number
+    importados?: number
   } | null>(null)
 
   const [isAlreadyProcessedState, setIsAlreadyProcessedState] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     supabase
@@ -72,9 +72,21 @@ export default function Index() {
 
   const canProcess = useMemo(() => {
     return (
-      !isAlreadyProcessedState && !processSuccess && selectedCompany && !validationError && data
+      !isAlreadyProcessedState &&
+      !processSuccess &&
+      selectedCompany &&
+      !validationError &&
+      data &&
+      !isProcessing
     )
-  }, [isAlreadyProcessedState, processSuccess, selectedCompany, validationError, data])
+  }, [
+    isAlreadyProcessedState,
+    processSuccess,
+    selectedCompany,
+    validationError,
+    data,
+    isProcessing,
+  ])
 
   const handleProcessFile = useCallback(
     (content: string, fileName: string) => {
@@ -89,16 +101,15 @@ export default function Index() {
         if (selectedCompany) {
           toast({
             title: 'Arquivo lido com sucesso',
-            description: `${selectedCompany.nome} - ${parsed.records.length} registros encontrados.`,
+            description: `${selectedCompany.nome} - ${parsed.records.length} registros (${parsed.summary.fileType}).`,
           })
         }
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro de Processamento',
-          description:
-            'Não foi possível extrair os dados. Verifique se o arquivo segue o layout Bradesco CNAB 400.',
-        })
+      } catch (error: any) {
+        setValidationError(error.message || 'Erro ao processar o arquivo CNAB.')
+        setData(null)
+        setProcessSuccess(null)
+        setExceptions([])
+        setCurrentFileName(null)
       }
     },
     [toast, selectedCompany],
@@ -108,219 +119,273 @@ export default function Index() {
     (msg: string) => {
       toast({
         variant: 'destructive',
-        title: 'Erro no Arquivo',
+        title: 'Atenção',
         description: msg,
       })
     },
     [toast],
   )
 
-  const handleConfirmarBaixa = useCallback(async () => {
+  const formatToDateDb = (d: string) => {
+    if (!d || d.length !== 10) return null
+    const [day, month, year] = d.split('/')
+    if (day && month && year) return `${year}-${month}-${day}`
+    return null
+  }
+
+  const handleImportarRemessa = useCallback(async () => {
     if (!currentFileName || isAlreadyProcessedState || !selectedCompany || !data) return
-    let liquidacoesProcessed = 0
-    let confirmacoesProcessed = 0
-    const newExceptions: { nossoNumero: string; tipo: string }[] = []
+    setIsProcessing(true)
 
-    const { data: existingBoletos } = await supabase
-      .from('boletos')
-      .select('id, nosso_numero')
-      .eq('empresa_id', selectedCompany.id)
-
-    for (const record of data.records) {
-      const boleto = existingBoletos?.find((b) => b.nosso_numero === record.nossoNumero)
-
-      if (record.tipo === 'Liquidado') {
-        if (boleto) {
-          await supabase
-            .from('boletos')
-            .update({
-              status: 'Pago',
-              data_pagamento: new Date().toISOString().split('T')[0],
-              valor_pago: record.valor,
-            })
-            .eq('id', boleto.id)
-          liquidacoesProcessed++
-        } else {
-          newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Liquidação' })
-        }
-      } else if (record.tipo === 'Confirmado') {
-        if (boleto) {
-          await supabase
-            .from('boletos')
-            .update({
-              status: 'Registrado',
-            })
-            .eq('id', boleto.id)
-          confirmacoesProcessed++
-        } else {
-          newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Confirmação' })
-        }
-      }
-    }
-
-    await supabase.from('retornos_processados').insert([
-      {
-        nome_arquivo: currentFileName,
+    try {
+      const recordsToInsert = data.records.map((r) => ({
+        nosso_numero: r.nossoNumero,
+        valor: r.valor,
+        vencimento: formatToDateDb(r.dataVencimento),
+        nome_pagador: r.pagador,
+        status: 'Pendente',
         empresa_id: selectedCompany.id,
-        quantidade_liquidacoes: liquidacoesProcessed,
-        quantidade_confirmacoes: confirmacoesProcessed,
-        processado: true,
-      },
-    ])
+      }))
 
-    setProcessSuccess({ liquidacoes: liquidacoesProcessed, confirmacoes: confirmacoesProcessed })
-    setExceptions(newExceptions)
-    setIsAlreadyProcessedState(true)
+      const { error } = await supabase
+        .from('boletos')
+        .upsert(recordsToInsert, { onConflict: 'nosso_numero', ignoreDuplicates: true })
 
-    toast({
-      title: 'Baixa concluída',
-      description: `Processamento finalizado com sucesso.`,
-    })
+      if (error) {
+        throw error
+      }
+
+      await supabase.from('retornos_processados').insert([
+        {
+          nome_arquivo: currentFileName,
+          empresa_id: selectedCompany.id,
+          processado: true,
+        },
+      ])
+
+      setProcessSuccess({ liquidacoes: 0, confirmacoes: 0, importados: recordsToInsert.length })
+      setIsAlreadyProcessedState(true)
+
+      toast({
+        title: 'Importação concluída',
+        description: `Foram importados os títulos da remessa com sucesso.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao importar remessa',
+        description: err.message || 'Erro inesperado.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
   }, [currentFileName, isAlreadyProcessedState, data, selectedCompany, toast])
 
+  const handleConfirmarBaixa = useCallback(async () => {
+    if (!currentFileName || isAlreadyProcessedState || !selectedCompany || !data) return
+    setIsProcessing(true)
+    try {
+      let liquidacoesProcessed = 0
+      let confirmacoesProcessed = 0
+      const newExceptions: { nossoNumero: string; tipo: string }[] = []
+
+      const { data: existingBoletos } = await supabase
+        .from('boletos')
+        .select('id, nosso_numero')
+        .eq('empresa_id', selectedCompany.id)
+
+      for (const record of data.records) {
+        const boleto = existingBoletos?.find((b) => b.nosso_numero === record.nossoNumero)
+
+        if (record.tipo === 'Liquidado') {
+          if (boleto) {
+            await supabase
+              .from('boletos')
+              .update({
+                status: 'Pago',
+                data_pagamento: new Date().toISOString().split('T')[0],
+                valor_pago: record.valorRecebido,
+              })
+              .eq('id', boleto.id)
+            liquidacoesProcessed++
+          } else {
+            newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Liquidação' })
+          }
+        } else if (record.tipo === 'Confirmado') {
+          if (boleto) {
+            await supabase
+              .from('boletos')
+              .update({
+                status: 'Registrado',
+              })
+              .eq('id', boleto.id)
+            confirmacoesProcessed++
+          } else {
+            newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Confirmação' })
+          }
+        }
+      }
+
+      await supabase.from('retornos_processados').insert([
+        {
+          nome_arquivo: currentFileName,
+          empresa_id: selectedCompany.id,
+          quantidade_liquidacoes: liquidacoesProcessed,
+          quantidade_confirmacoes: confirmacoesProcessed,
+          processado: true,
+        },
+      ])
+
+      setProcessSuccess({ liquidacoes: liquidacoesProcessed, confirmacoes: confirmacoesProcessed })
+      setExceptions(newExceptions)
+      setIsAlreadyProcessedState(true)
+
+      toast({
+        title: 'Baixa concluída',
+        description: `Processamento finalizado com sucesso.`,
+      })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao processar retorno',
+        description: err.message || 'Erro inesperado.',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [currentFileName, isAlreadyProcessedState, data, selectedCompany, toast])
+
+  const isRemessa = data?.summary.fileType === 'REMESSA'
+  const handleProcessAction = isRemessa ? handleImportarRemessa : handleConfirmarBaixa
+
   return (
-    <div className="flex flex-col gap-8 animate-fade-in pb-20">
-      <section className="flex flex-col gap-2">
+    <div className="flex flex-col gap-8 animate-fade-in pb-20 w-full max-w-4xl mx-auto">
+      <section className="flex flex-col gap-2 text-center pt-8">
         <h2 className="text-3xl font-bold tracking-tight">Retorno Bancário Bradesco</h2>
-        <p className="text-muted-foreground max-w-3xl">
-          Selecione a empresa e faça o upload do arquivo de retorno do Bradesco (CNAB 400) para
-          processar as liquidações e confirmações de registro.
+        <p className="text-muted-foreground mx-auto max-w-2xl">
+          Selecione a empresa e faça o upload do arquivo de remessa ou retorno do Bradesco (CNAB
+          400).
         </p>
       </section>
 
-      <Tabs defaultValue="process" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="process" className="flex gap-2">
-            <CheckCircle className="h-4 w-4" /> Processar Retorno
-          </TabsTrigger>
-          <TabsTrigger value="database" className="flex gap-2">
-            <Database className="h-4 w-4" /> Banco de Dados (Boletos)
-          </TabsTrigger>
-        </TabsList>
+      <div className="space-y-8 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="company-select" className="text-sm font-semibold text-slate-700">
+            Empresa <span className="text-red-500">*</span>
+          </Label>
+          <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+            <SelectTrigger id="company-select" className="w-full">
+              <SelectValue placeholder="Selecione uma empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              {empresas.map((empresa) => (
+                <SelectItem key={empresa.id} value={empresa.id}>
+                  {empresa.nome} - {empresa.cnpj || 'Sem CNPJ'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <TabsContent value="process" className="space-y-8">
-          <div className="flex flex-col gap-3 max-w-md">
-            <Label htmlFor="company-select">
-              Empresa <span className="text-red-500">*</span>
-            </Label>
-            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-              <SelectTrigger id="company-select" className="w-full">
-                <SelectValue placeholder="Selecione uma empresa" />
-              </SelectTrigger>
-              <SelectContent>
-                {empresas.map((empresa) => (
-                  <SelectItem key={empresa.id} value={empresa.id}>
-                    {empresa.nome} - {empresa.cnpj || 'Sem CNPJ'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <UploadZone
+          onFileProcess={handleProcessFile}
+          onError={handleError}
+          companySelected={!!selectedCompanyId}
+        />
 
-          <UploadZone
-            onFileProcess={handleProcessFile}
-            onError={handleError}
-            companySelected={!!selectedCompanyId}
-          />
+        {validationError && (
+          <Alert
+            variant="destructive"
+            className="animate-slide-down border-red-200 bg-red-50 text-red-900"
+          >
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle>Erro no Arquivo</AlertTitle>
+            <AlertDescription className="text-red-800">{validationError}</AlertDescription>
+          </Alert>
+        )}
 
-          {validationError && (
-            <Alert
-              variant="destructive"
-              className="animate-slide-down border-red-200 bg-red-50 text-red-900"
-            >
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertTitle>Erro de Validação</AlertTitle>
-              <AlertDescription className="text-red-800">{validationError}</AlertDescription>
-            </Alert>
-          )}
+        {isAlreadyProcessedState && selectedCompany && !processSuccess && (
+          <Alert variant="destructive" className="animate-slide-down">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Arquivo já processado</AlertTitle>
+            <AlertDescription>
+              O arquivo <strong>{currentFileName}</strong> já foi processado anteriormente para a
+              empresa selecionada. A ação não pode ser realizada novamente para o mesmo arquivo.
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {isAlreadyProcessedState && selectedCompany && (
-            <Alert variant="destructive" className="animate-slide-down">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Arquivo já processado</AlertTitle>
-              <AlertDescription>
-                O arquivo <strong>{currentFileName}</strong> já foi processado anteriormente para a
-                empresa selecionada. A baixa de títulos não pode ser realizada novamente para o
-                mesmo arquivo.
+        {processSuccess && (
+          <div className="space-y-4 animate-fade-in-up">
+            <Alert className="bg-emerald-50 border-emerald-200 text-emerald-800">
+              <CheckCircle className="h-4 w-4 text-emerald-600" />
+              <AlertTitle className="text-emerald-900 font-semibold">Operação Concluída</AlertTitle>
+              <AlertDescription className="text-emerald-700/90">
+                {isRemessa
+                  ? `Foram importados os títulos da remessa com sucesso.`
+                  : `Baixa confirmada com ${processSuccess.liquidacoes} liquidações e ${processSuccess.confirmacoes} confirmações.`}
               </AlertDescription>
             </Alert>
-          )}
 
-          {processSuccess && (
-            <div className="space-y-4 animate-fade-in-up">
-              <Alert className="bg-emerald-50 border-emerald-200 text-emerald-800">
-                <CheckCircle className="h-4 w-4 text-emerald-600" />
-                <AlertTitle className="text-emerald-900 font-semibold">
-                  Processamento Concluído
-                </AlertTitle>
-                <AlertDescription className="text-emerald-700/90">
-                  Baixa confirmada com {processSuccess.liquidacoes} liquidações e{' '}
-                  {processSuccess.confirmacoes} confirmações.
+            {exceptions.length > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Exceções Encontradas ({exceptions.length})</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <p className="mb-2">
+                    Os seguintes títulos foram encontrados no arquivo, mas não existem no banco de
+                    dados para a empresa selecionada:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1 text-xs">
+                    {exceptions.map((ex, i) => (
+                      <li key={i}>
+                        Título <strong>{ex.nossoNumero}</strong> - {ex.tipo}
+                      </li>
+                    ))}
+                  </ul>
                 </AlertDescription>
               </Alert>
-
-              {exceptions.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Exceções Encontradas ({exceptions.length})</AlertTitle>
-                  <AlertDescription className="mt-2">
-                    <p className="mb-2">
-                      Os seguintes títulos foram encontrados no arquivo, mas não existem no banco de
-                      dados para a empresa selecionada:
-                    </p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      {exceptions.map((ex, i) => (
-                        <li key={i}>
-                          Título <strong>{ex.nossoNumero}</strong> - {ex.tipo}
-                        </li>
-                      ))}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          )}
-
-          {data && (
-            <div className="space-y-6 animate-fade-in-up">
-              <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-emerald-500" />
-                  Resumo do Arquivo {selectedCompany ? `- ${selectedCompany.nome}` : ''}
-                </h3>
-                <SummaryCards summary={data.summary} />
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos lidos</h3>
-                <DataTable records={data.records} empresaNome={selectedCompany?.nome} />
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="database" className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-            <h3 className="text-lg font-semibold">Títulos Sincronizados</h3>
-            <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
-              Tabela de Boletos do Banco de Dados
-            </span>
+            )}
           </div>
-          <BoletosTable />
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {data && !validationError && (
+          <div className="space-y-6 animate-fade-in-up pt-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FileUp className="h-5 w-5 text-primary" />
+                Resumo do Arquivo {selectedCompany ? `- ${selectedCompany.nome}` : ''}
+              </h3>
+              <SummaryCards summary={data.summary} />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos</h3>
+              <DataTable
+                records={data.records}
+                empresaNome={selectedCompany?.nome}
+                fileType={data.summary.fileType}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Action Footer Bar */}
-      {data && (
+      {data && !validationError && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-          <div className="max-w-7xl mx-auto w-full flex justify-end">
+          <div className="max-w-4xl mx-auto w-full flex justify-end">
             <Button
               size="lg"
               disabled={!canProcess}
-              onClick={handleConfirmarBaixa}
+              onClick={handleProcessAction}
               className="font-semibold shadow-sm w-full sm:w-auto"
             >
-              Confirmar Baixa de {data.summary.totalLiquidacoes} Títulos
+              {isProcessing
+                ? 'Processando...'
+                : isRemessa
+                  ? `Importar Remessa (${data.summary.totalRegistros} Títulos)`
+                  : `Confirmar Baixa de ${data.summary.totalLiquidacoes} Títulos`}
             </Button>
           </div>
         </div>

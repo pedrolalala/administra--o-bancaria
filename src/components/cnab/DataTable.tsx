@@ -8,15 +8,16 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { CnabRecord } from '@/types/cnab'
+import { CnabRecord, FileType } from '@/types/cnab'
 import { cn } from '@/lib/utils'
 
 interface DataTableProps {
   records: CnabRecord[]
   empresaNome?: string
+  fileType: FileType
 }
 
-export function DataTable({ records, empresaNome }: DataTableProps) {
+export function DataTable({ records, empresaNome, fileType }: DataTableProps) {
   if (records.length === 0) {
     return (
       <Card className="p-8 text-center text-muted-foreground">
@@ -30,12 +31,17 @@ export function DataTable({ records, empresaNome }: DataTableProps) {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[150px]">Nosso Número</TableHead>
+            <TableHead className="w-[120px]">Nosso Número</TableHead>
+            <TableHead className="w-[80px]">NF</TableHead>
             <TableHead>Pagador</TableHead>
-            <TableHead>Empresa</TableHead>
+            <TableHead className="text-right">Vencimento</TableHead>
             <TableHead className="text-right">Valor</TableHead>
-            <TableHead className="text-right">Data</TableHead>
-            <TableHead className="text-right">Status</TableHead>
+            {fileType === 'RETORNO' && (
+              <>
+                <TableHead className="text-right">Val. Recebido</TableHead>
+                <TableHead className="text-right">Status</TableHead>
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -44,33 +50,43 @@ export function DataTable({ records, empresaNome }: DataTableProps) {
               <TableCell className="font-mono text-xs font-medium text-slate-600">
                 {record.nossoNumero}
               </TableCell>
+              <TableCell className="text-xs text-slate-600">{record.nf || '-'}</TableCell>
               <TableCell className="max-w-[200px] truncate font-medium" title={record.pagador}>
-                {record.pagador}
+                {record.pagador || '-'}
               </TableCell>
-              <TableCell className="max-w-[150px] truncate text-slate-600">
-                {empresaNome || '-'}
+              <TableCell className="text-right text-muted-foreground text-sm">
+                {record.dataVencimento || '-'}
               </TableCell>
               <TableCell className="text-right font-mono text-sm">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                   record.valor,
                 )}
               </TableCell>
-              <TableCell className="text-right text-muted-foreground text-sm">
-                {record.data}
-              </TableCell>
-              <TableCell className="text-right">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    'font-medium border-transparent',
-                    record.tipo === 'Liquidado' && 'bg-emerald-100 text-emerald-800',
-                    record.tipo === 'Confirmado' && 'bg-sky-100 text-sky-800',
-                    record.tipo === 'Outros' && 'bg-slate-100 text-slate-800',
-                  )}
-                >
-                  {record.tipo}
-                </Badge>
-              </TableCell>
+              {fileType === 'RETORNO' && (
+                <>
+                  <TableCell className="text-right font-mono text-sm text-slate-500">
+                    {record.valorRecebido != null
+                      ? new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(record.valorRecebido)
+                      : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'font-medium border-transparent',
+                        record.tipo === 'Liquidado' && 'bg-emerald-100 text-emerald-800',
+                        record.tipo === 'Confirmado' && 'bg-sky-100 text-sky-800',
+                        record.tipo === 'Outros' && 'bg-slate-100 text-slate-800',
+                      )}
+                    >
+                      {record.tipo || 'Outros'}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
             </TableRow>
           ))}
         </TableBody>

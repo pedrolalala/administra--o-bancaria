@@ -9,7 +9,7 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen w-full bg-slate-50 flex-col">
-      <header className="h-16 border-b bg-white flex items-center justify-between px-6 sticky top-0 z-10 shadow-sm">
+      <header className="h-16 border-b bg-white flex items-center justify-center px-6 sticky top-0 z-10 shadow-sm relative">
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 p-2 rounded-lg text-primary">
             <FileUp className="h-6 w-6" />
@@ -17,18 +17,7 @@ export default function Layout() {
           <h1 className="text-xl font-bold tracking-tight text-slate-800">Lucenera</h1>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-right hidden sm:block">
-            <p className="font-medium text-slate-700 leading-none">{user?.email}</p>
-            <p className="text-xs text-muted-foreground mt-1">Financeiro</p>
-          </div>
-          <Avatar className="h-9 w-9 border border-slate-200 shadow-sm">
-            <AvatarImage
-              src="https://img.usecurling.com/ppl/thumbnail?gender=male&seed=pedro"
-              alt="Usuário"
-            />
-            <AvatarFallback>LU</AvatarFallback>
-          </Avatar>
+        <div className="absolute right-6 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>

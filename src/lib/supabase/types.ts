@@ -7631,6 +7631,8 @@ export const Constants = {
 // Table: empresas
 //   Policy "anon_select_empresas" (SELECT, PERMISSIVE) roles={anon,authenticated}
 //     USING: true
+//   Policy "authenticated_select_empresas" (SELECT, PERMISSIVE) roles={authenticated}
+//     USING: true
 //   Policy "empresas_delete_auth" (DELETE, PERMISSIVE) roles={authenticated}
 //     USING: true
 //   Policy "empresas_insert" (INSERT, PERMISSIVE) roles={service_role}

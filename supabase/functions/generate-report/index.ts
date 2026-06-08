@@ -214,7 +214,7 @@ Deno.serve(async (req: Request) => {
           })
 
           logoBottomY = logoY
-          textY = logoBottomY - 15 // text immediately below the logo
+          textY = logoBottomY - 5 // text immediately below the logo
         } catch (e) {
           console.error('Error embedding logo:', e)
         }
@@ -227,18 +227,18 @@ Deno.serve(async (req: Request) => {
       const empresaEnd = `${empresa.cep || '14.025-270'} ${empresa.logradouro || 'Rua Ayrton Roxo'} ${empresa.numero || '867'}`
       const empresaCidade = `${empresa.bairro || 'Alto Da Boa Vista'}, ${empresa.cidade || 'Ribeirao Preto'}/${empresa.estado || 'SP'}`
 
-      page.drawText(empresaNomeLogo, { x: headerTextX, y: textY, size: 12, font: boldFont })
-      page.drawText(empresaRazao, { x: headerTextX, y: textY - 12, size: 8, font })
-      page.drawText(empresaEnd, { x: headerTextX, y: textY - 22, size: 8, font })
-      page.drawText(empresaCidade, { x: headerTextX, y: textY - 32, size: 8, font })
-      page.drawText('(16) 3442 - 3545', { x: headerTextX, y: textY - 42, size: 8, font })
+      page.drawText(empresaNomeLogo, { x: headerTextX, y: textY, size: 10, font: boldFont })
+      page.drawText(empresaRazao, { x: headerTextX, y: textY - 10, size: 8, font })
+      page.drawText(empresaEnd, { x: headerTextX, y: textY - 20, size: 8, font })
+      page.drawText(empresaCidade, { x: headerTextX, y: textY - 30, size: 8, font })
+      page.drawText('(16) 3442 - 3545', { x: headerTextX, y: textY - 40, size: 8, font })
 
-      const companyTextBottomY = textY - 42
+      const companyTextBottomY = textY - 40
 
       // Right Side - Approval Section
       page.drawText('1 de 1', { x: width - 60, y: height - 20, size: 9, font: boldFont })
 
-      const approvalY = height - 35
+      const approvalY = textY - 5 // start lower so it doesn't overlap header and has enough space
       page.drawLine({
         start: { x: width - 200, y: approvalY },
         end: { x: width - 40, y: approvalY },
@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
       })
       page.drawText('Aprovação do Cliente', { x: width - 195, y: approvalY + 3, size: 8, font })
 
-      const signatureY = approvalY - 30
+      const signatureY = approvalY - 25
       page.drawLine({
         start: { x: width - 200, y: signatureY },
         end: { x: width - 40, y: signatureY },
@@ -254,7 +254,7 @@ Deno.serve(async (req: Request) => {
       })
       page.drawText(empresaNomeAssinatura, { x: width - 195, y: signatureY + 3, size: 8, font })
 
-      const dateY = signatureY - 15
+      const dateY = signatureY - 10
       page.drawText(
         `Data Impressão ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
         { x: width - 150, y: dateY, size: 6, font, color: rgb(0.4, 0.4, 0.4) },
@@ -264,7 +264,7 @@ Deno.serve(async (req: Request) => {
       const lowestHeaderY = Math.min(companyTextBottomY, dateY)
 
       // Add safe vertical margin below the lowest header element
-      let y = lowestHeaderY - 20
+      let y = lowestHeaderY - 15
       page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 2 })
 
       y -= 25

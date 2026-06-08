@@ -109,7 +109,7 @@ export function UploadZone({ onFileProcess, onError, companySelected }: UploadZo
       <p className="text-sm text-muted-foreground text-center max-w-sm">
         {fileName
           ? 'Clique para carregar um arquivo diferente'
-          : 'Selecione um arquivo de retorno Bradesco CNAB 400 (.RET, .TXT ou .REM)'}
+          : 'Selecione um arquivo de remessa ou retorno Bradesco CNAB 400 (.REM, .TXT ou .RET)'}
       </p>
     </div>
   )

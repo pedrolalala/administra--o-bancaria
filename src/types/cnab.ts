@@ -1,17 +1,24 @@
+export type FileType = 'REMESSA' | 'RETORNO'
+
 export interface CnabRecord {
   id: string
   nossoNumero: string
-  ocorrencia: string
-  data: string
+  nf: string
+  dataVencimento: string
   valor: number
   pagador: string
-  tipo: 'Liquidado' | 'Confirmado' | 'Outros'
+  tipo?: 'Liquidado' | 'Confirmado' | 'Outros'
+  ocorrencia?: string
+  valorRecebido?: number
 }
 
 export interface CnabSummary {
-  totalLiquidacoes: number
-  totalConfirmacoes: number
-  valorTotalRecebido: number
+  fileType: FileType
+  totalRegistros: number
+  valorTotal: number
+  totalLiquidacoes?: number
+  totalConfirmacoes?: number
+  valorTotalRecebido?: number
 }
 
 export interface CnabData {
