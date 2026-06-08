@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { UploadZone } from '@/components/cnab/UploadZone'
 import { SummaryCards } from '@/components/cnab/SummaryCards'
 import { DataTable } from '@/components/cnab/DataTable'
@@ -8,18 +8,21 @@ import { useToast } from '@/hooks/use-toast'
 import { CnabData } from '@/types/cnab'
 import { mockCnabData } from '@/lib/mock-data'
 import { parseCnab400 } from '@/lib/cnab-parser'
-import { Info, CheckCircle, AlertCircle, Database } from 'lucide-react'
+import { Info, CheckCircle, AlertCircle, Database, Building } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import useDatabaseStore from '@/stores/main'
+import { supabase } from '@/lib/supabase/client'
 
 export default function Index() {
   const { toast } = useToast()
-  const db = useDatabaseStore()
 
   const [data, setData] = useState<CnabData>(mockCnabData)
   const [isDemo, setIsDemo] = useState(true)
   const [currentFileName, setCurrentFileName] = useState<string | null>('RETORNO_DEMO_01.RET')
+
+  const [empresas, setEmpresas] = useState<any[]>([])
+  const [identifiedCompany, setIdentifiedCompany] = useState<any | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   const [exceptions, setExceptions] = useState<{ nossoNumero: string; tipo: string }[]>([])
   const [processSuccess, setProcessSuccess] = useState<{
@@ -27,13 +30,36 @@ export default function Index() {
     confirmacoes: number
   } | null>(null)
 
-  const isAlreadyProcessed = useMemo(() => {
-    return currentFileName ? db.checkArquivoProcessado(currentFileName) : false
-  }, [currentFileName, db])
+  const [isAlreadyProcessedState, setIsAlreadyProcessedState] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('empresas')
+      .select('id, nome, cnpj')
+      .then(({ data }) => {
+        if (data) setEmpresas(data)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (currentFileName && identifiedCompany) {
+      supabase
+        .from('retornos_processados')
+        .select('id')
+        .eq('nome_arquivo', currentFileName)
+        .eq('empresa_id', identifiedCompany.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setIsAlreadyProcessedState(!!data)
+        })
+    } else {
+      setIsAlreadyProcessedState(false)
+    }
+  }, [currentFileName, identifiedCompany])
 
   const canProcess = useMemo(() => {
-    return !isAlreadyProcessed && !processSuccess
-  }, [isAlreadyProcessed, processSuccess])
+    return !isAlreadyProcessedState && !processSuccess && identifiedCompany && !validationError
+  }, [isAlreadyProcessedState, processSuccess, identifiedCompany, validationError])
 
   const handleProcessFile = useCallback(
     (content: string, fileName: string) => {
@@ -44,11 +70,28 @@ export default function Index() {
         setCurrentFileName(fileName)
         setExceptions([])
         setProcessSuccess(null)
+        setValidationError(null)
 
-        toast({
-          title: 'Arquivo processado',
-          description: `${parsed.records.length} registros encontrados em ${fileName}.`,
-        })
+        if (parsed.cnpjEmpresa) {
+          const match = empresas.find((e) => {
+            const dbCnpj = e.cnpj?.replace(/\D/g, '')
+            return dbCnpj === parsed.cnpjEmpresa
+          })
+
+          if (match) {
+            setIdentifiedCompany(match)
+            toast({
+              title: 'Empresa identificada',
+              description: `${match.nome} - ${parsed.records.length} registros encontrados.`,
+            })
+          } else {
+            setIdentifiedCompany(null)
+            setValidationError('Empresa não cadastrada. Verifique o CNPJ do arquivo.')
+          }
+        } else {
+          setIdentifiedCompany(null)
+          setValidationError('CNPJ não encontrado no cabeçalho do arquivo.')
+        }
       } catch (error) {
         toast({
           variant: 'destructive',
@@ -58,7 +101,7 @@ export default function Index() {
         })
       }
     },
-    [toast],
+    [toast, empresas],
   )
 
   const handleError = useCallback(
@@ -72,29 +115,42 @@ export default function Index() {
     [toast],
   )
 
-  const handleConfirmarBaixa = useCallback(() => {
-    if (!currentFileName || isAlreadyProcessed) return
+  const handleConfirmarBaixa = useCallback(async () => {
+    if (!currentFileName || isAlreadyProcessedState || !identifiedCompany) return
     let liquidacoesProcessed = 0
     let confirmacoesProcessed = 0
     const newExceptions: { nossoNumero: string; tipo: string }[] = []
 
+    const { data: existingBoletos } = await supabase
+      .from('boletos')
+      .select('id, nosso_numero')
+      .eq('empresa_id', identifiedCompany.id)
+
     for (const record of data.records) {
+      const boleto = existingBoletos?.find((b) => b.nosso_numero === record.nossoNumero)
+
       if (record.tipo === 'Liquidado') {
-        const success = db.updateBoleto(record.nossoNumero, {
-          status: 'Pago',
-          data_liquidacao: record.data,
-          valor_recebido: record.valor,
-        })
-        if (success) {
+        if (boleto) {
+          await supabase
+            .from('boletos')
+            .update({
+              status: 'Pago',
+              data_pagamento: new Date().toISOString().split('T')[0],
+              valor_pago: record.valor,
+            })
+            .eq('id', boleto.id)
           liquidacoesProcessed++
         } else {
           newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Liquidação' })
         }
       } else if (record.tipo === 'Confirmado') {
-        const success = db.updateBoleto(record.nossoNumero, {
-          status: 'Registrado',
-        })
-        if (success) {
+        if (boleto) {
+          await supabase
+            .from('boletos')
+            .update({
+              status: 'Registrado',
+            })
+            .eq('id', boleto.id)
           confirmacoesProcessed++
         } else {
           newExceptions.push({ nossoNumero: record.nossoNumero, tipo: 'Confirmação' })
@@ -102,24 +158,25 @@ export default function Index() {
       }
     }
 
-    db.addRetorno({
-      id: crypto.randomUUID(),
-      nome_arquivo: currentFileName,
-      data_upload: new Date().toISOString(),
-      empresa_id: 'emp1',
-      quantidade_liquidacoes: liquidacoesProcessed,
-      quantidade_confirmacoes: confirmacoesProcessed,
-      processado: true,
-    })
+    await supabase.from('retornos_processados').insert([
+      {
+        nome_arquivo: currentFileName,
+        empresa_id: identifiedCompany.id,
+        quantidade_liquidacoes: liquidacoesProcessed,
+        quantidade_confirmacoes: confirmacoesProcessed,
+        processado: true,
+      },
+    ])
 
     setProcessSuccess({ liquidacoes: liquidacoesProcessed, confirmacoes: confirmacoesProcessed })
     setExceptions(newExceptions)
+    setIsAlreadyProcessedState(true)
 
     toast({
       title: 'Baixa concluída',
       description: `Processamento finalizado com sucesso.`,
     })
-  }, [currentFileName, isAlreadyProcessed, data.records, db, toast])
+  }, [currentFileName, isAlreadyProcessedState, data.records, identifiedCompany, toast])
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20">
@@ -127,8 +184,8 @@ export default function Index() {
         <h2 className="text-3xl font-bold tracking-tight">Retorno Bancário</h2>
         <p className="text-muted-foreground max-w-3xl">
           Faça o upload do arquivo de retorno do Bradesco (CNAB 400) para visualizar as liquidações
-          e confirmações de registro. O sistema sincroniza automaticamente os status dos boletos no
-          banco de dados.
+          e confirmações de registro. O sistema identifica automaticamente a empresa pelo CNPJ no
+          cabeçalho e sincroniza os status dos boletos.
         </p>
       </section>
 
@@ -150,20 +207,42 @@ export default function Index() {
               <Info className="h-4 w-4 text-sky-600" />
               <AlertTitle className="text-sky-900 font-semibold">Modo de Demonstração</AlertTitle>
               <AlertDescription className="text-sky-700/90">
-                Os dados exibidos abaixo são um exemplo para demonstrar a interface. Você pode
-                testar a "Confirmação de Baixa" agora mesmo para ver como o banco de dados é
-                atualizado e as exceções são tratadas.
+                O arquivo padrão foi carregado. Faça o upload de um arquivo CNAB 400 real para
+                processar seus dados.
               </AlertDescription>
             </Alert>
           )}
 
-          {isAlreadyProcessed && (
+          {validationError && (
+            <Alert
+              variant="destructive"
+              className="animate-slide-down border-red-200 bg-red-50 text-red-900"
+            >
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertTitle>Erro de Validação</AlertTitle>
+              <AlertDescription className="text-red-800">{validationError}</AlertDescription>
+            </Alert>
+          )}
+
+          {identifiedCompany && !validationError && (
+            <Alert className="bg-blue-50 border-blue-200 text-blue-900 animate-slide-down">
+              <Building className="h-4 w-4 text-blue-600" />
+              <AlertTitle>Empresa Identificada</AlertTitle>
+              <AlertDescription className="text-blue-800">
+                Arquivo associado à empresa: <strong>{identifiedCompany.nome}</strong> (CNPJ:{' '}
+                {identifiedCompany.cnpj})
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isAlreadyProcessedState && identifiedCompany && (
             <Alert variant="destructive" className="animate-slide-down">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Arquivo já processado</AlertTitle>
               <AlertDescription>
-                O arquivo <strong>{currentFileName}</strong> já foi processado anteriormente. A
-                baixa de títulos não pode ser realizada novamente para o mesmo arquivo.
+                O arquivo <strong>{currentFileName}</strong> já foi processado anteriormente para a
+                empresa identificada. A baixa de títulos não pode ser realizada novamente para o
+                mesmo arquivo.
               </AlertDescription>
             </Alert>
           )}
@@ -188,7 +267,7 @@ export default function Index() {
                   <AlertDescription className="mt-2">
                     <p className="mb-2">
                       Os seguintes títulos foram encontrados no arquivo, mas não existem no banco de
-                      dados:
+                      dados para a empresa selecionada:
                     </p>
                     <ul className="list-disc pl-4 space-y-1">
                       {exceptions.map((ex, i) => (
@@ -207,14 +286,14 @@ export default function Index() {
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-emerald-500" />
-                Resumo Financeiro
+                Resumo Financeiro {identifiedCompany ? `- ${identifiedCompany.nome}` : ''}
               </h3>
               <SummaryCards summary={data.summary} />
             </div>
 
             <div>
               <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos</h3>
-              <DataTable records={data.records} />
+              <DataTable records={data.records} empresaNome={identifiedCompany?.nome} />
             </div>
           </div>
         </TabsContent>
@@ -223,7 +302,7 @@ export default function Index() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
             <h3 className="text-lg font-semibold">Tabela de Boletos</h3>
             <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
-              Simulação de banco de dados em tempo real
+              Sincronizado com o banco de dados
             </span>
           </div>
           <BoletosTable />

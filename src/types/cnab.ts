@@ -15,6 +15,7 @@ export interface CnabSummary {
 }
 
 export interface CnabData {
+  cnpjEmpresa?: string
   records: CnabRecord[]
   summary: CnabSummary
 }

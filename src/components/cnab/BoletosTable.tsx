@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Table,
   TableBody,
@@ -8,12 +9,43 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/mock-data'
-import useDatabaseStore from '@/stores/main'
+import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 export function BoletosTable() {
-  const { boletos } = useDatabaseStore()
+  const [boletos, setBoletos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchBoletos = async () => {
+      const { data } = await supabase
+        .from('boletos')
+        .select(`
+          *,
+          empresas ( nome )
+        `)
+        .order('vencimento', { ascending: false })
+      if (data) setBoletos(data)
+      setLoading(false)
+    }
+
+    fetchBoletos()
+
+    const channel = supabase
+      .channel('boletos_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'boletos' }, () => {
+        fetchBoletos()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  if (loading) {
+    return <Card className="p-8 text-center text-muted-foreground">Carregando...</Card>
+  }
 
   if (boletos.length === 0) {
     return (
@@ -28,8 +60,9 @@ export function BoletosTable() {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[150px]">Nosso Número</TableHead>
+            <TableHead className="w-[120px]">Nosso Número</TableHead>
             <TableHead>Pagador</TableHead>
+            <TableHead>Empresa</TableHead>
             <TableHead className="text-right">Valor</TableHead>
             <TableHead className="text-right">Vencimento</TableHead>
             <TableHead className="text-right">Pagamento</TableHead>
@@ -42,17 +75,26 @@ export function BoletosTable() {
               <TableCell className="font-mono text-xs font-medium text-slate-600">
                 {boleto.nosso_numero}
               </TableCell>
-              <TableCell className="max-w-[200px] truncate font-medium" title={boleto.nome_pagador}>
+              <TableCell className="max-w-[150px] truncate font-medium" title={boleto.nome_pagador}>
                 {boleto.nome_pagador}
               </TableCell>
+              <TableCell className="max-w-[150px] truncate text-slate-600">
+                {boleto.empresas?.nome || '-'}
+              </TableCell>
               <TableCell className="text-right font-mono text-sm">
-                {formatCurrency(boleto.valor)}
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  boleto.valor || 0,
+                )}
               </TableCell>
               <TableCell className="text-right text-muted-foreground text-sm">
-                {boleto.vencimento}
+                {boleto.vencimento
+                  ? new Date(boleto.vencimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                  : '-'}
               </TableCell>
               <TableCell className="text-right text-muted-foreground text-sm">
-                {boleto.data_liquidacao || '-'}
+                {boleto.data_pagamento
+                  ? new Date(boleto.data_pagamento).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+                  : '-'}
               </TableCell>
               <TableCell className="text-right">
                 <Badge
