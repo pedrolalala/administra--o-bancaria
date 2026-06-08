@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { UploadZone } from '@/components/cnab/UploadZone'
 import { SummaryCards } from '@/components/cnab/SummaryCards'
 import { DataTable } from '@/components/cnab/DataTable'
@@ -27,43 +27,53 @@ export default function Index() {
     confirmacoes: number
   } | null>(null)
 
-  const isAlreadyProcessed = currentFileName ? db.checkArquivoProcessado(currentFileName) : false
-  const canProcess = !isAlreadyProcessed && !processSuccess
+  const isAlreadyProcessed = useMemo(() => {
+    return currentFileName ? db.checkArquivoProcessado(currentFileName) : false
+  }, [currentFileName, db])
 
-  const handleProcessFile = (content: string, fileName: string) => {
-    try {
-      const parsed = parseCnab400(content)
-      setData(parsed)
-      setIsDemo(false)
-      setCurrentFileName(fileName)
-      setExceptions([])
-      setProcessSuccess(null)
+  const canProcess = useMemo(() => {
+    return !isAlreadyProcessed && !processSuccess
+  }, [isAlreadyProcessed, processSuccess])
 
-      toast({
-        title: 'Arquivo processado',
-        description: `${parsed.records.length} registros encontrados em ${fileName}.`,
-      })
-    } catch (error) {
+  const handleProcessFile = useCallback(
+    (content: string, fileName: string) => {
+      try {
+        const parsed = parseCnab400(content)
+        setData(parsed)
+        setIsDemo(false)
+        setCurrentFileName(fileName)
+        setExceptions([])
+        setProcessSuccess(null)
+
+        toast({
+          title: 'Arquivo processado',
+          description: `${parsed.records.length} registros encontrados em ${fileName}.`,
+        })
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Processamento',
+          description:
+            'Não foi possível extrair os dados. Verifique se o arquivo segue o layout Bradesco CNAB 400.',
+        })
+      }
+    },
+    [toast],
+  )
+
+  const handleError = useCallback(
+    (msg: string) => {
       toast({
         variant: 'destructive',
-        title: 'Erro de Processamento',
-        description:
-          'Não foi possível extrair os dados. Verifique se o arquivo segue o layout Bradesco CNAB 400.',
+        title: 'Erro no Arquivo',
+        description: msg,
       })
-    }
-  }
+    },
+    [toast],
+  )
 
-  const handleError = (msg: string) => {
-    toast({
-      variant: 'destructive',
-      title: 'Erro no Arquivo',
-      description: msg,
-    })
-  }
-
-  const handleConfirmarBaixa = () => {
+  const handleConfirmarBaixa = useCallback(() => {
     if (!currentFileName || isAlreadyProcessed) return
-
     let liquidacoesProcessed = 0
     let confirmacoesProcessed = 0
     const newExceptions: { nossoNumero: string; tipo: string }[] = []
@@ -109,7 +119,7 @@ export default function Index() {
       title: 'Baixa concluída',
       description: `Processamento finalizado com sucesso.`,
     })
-  }
+  }, [currentFileName, isAlreadyProcessed, data.records, db, toast])
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20">
