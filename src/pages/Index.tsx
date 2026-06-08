@@ -201,7 +201,7 @@ export default function Index() {
 
         <TabsContent value="process" className="space-y-8">
           <div className="flex flex-col gap-3 max-w-md">
-            <Label htmlFor="company-select">Empresa Alvo do Processamento *</Label>
+            <Label htmlFor="company-select">Empresa</Label>
             <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
               <SelectTrigger id="company-select" className="w-full">
                 <SelectValue placeholder="Selecione uma empresa" />
@@ -209,7 +209,7 @@ export default function Index() {
               <SelectContent>
                 {empresas.map((empresa) => (
                   <SelectItem key={empresa.id} value={empresa.id}>
-                    {empresa.nome} ({empresa.cnpj || 'Sem CNPJ'})
+                    {empresa.nome} - {empresa.cnpj || 'Sem CNPJ'}
                   </SelectItem>
                 ))}
               </SelectContent>

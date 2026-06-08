@@ -15,7 +15,7 @@ export function UploadZone({ onFileProcess, onError, companySelected }: UploadZo
 
   const checkCompanySelected = () => {
     if (!companySelected) {
-      onError('Selecione uma empresa antes de enviar o arquivo.')
+      onError('Selecione uma empresa antes de enviar o arquivo')
       return false
     }
     return true
