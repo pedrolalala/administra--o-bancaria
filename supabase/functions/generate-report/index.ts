@@ -115,7 +115,9 @@ Deno.serve(async (req: Request) => {
         })
       }
 
-      const { data: budget, error: budgetError } = await supabaseAdmin
+      let budget: any = null
+
+      const { data: orcData } = await supabaseAdmin
         .from('orcamentos')
         .select(`
           *,
@@ -128,9 +130,46 @@ Deno.serve(async (req: Request) => {
           )
         `)
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
-      if (budgetError || !budget) {
+      if (orcData) {
+        budget = orcData
+      } else {
+        const { data: ubiquaData } = await supabaseAdmin
+          .from('orcamentos_revenda_ubiqua')
+          .select(`
+            *,
+            cliente:informacoes_cliente_ubiqua!orcamentos_revenda_ubiqua_cliente_id_fkey(nome, email, telefone, cpf_cnpj),
+            itens:itens_orcamento_ubiqua(
+              id, produto_id, quantidade, valor_unitario, valor_total, desconto_item, referencia_snapshot, descricao_snapshot, observacao_item, ordem
+            )
+          `)
+          .eq('id', id)
+          .maybeSingle()
+
+        if (ubiquaData) {
+          budget = ubiquaData
+          const { data: empUbiqua } = await supabaseAdmin
+            .from('empresa_ubiqua')
+            .select('*')
+            .limit(1)
+            .maybeSingle()
+          budget.empresa = empUbiqua || {}
+          budget.numero = ubiquaData.numero_orcamento
+          budget.desconto_global = ubiquaData.valor_desconto
+          budget.itens = (ubiquaData.itens || []).map((i: any) => ({
+            id: i.id,
+            produto_id: i.produto_id,
+            quantidade: i.quantidade,
+            preco_unitario: i.valor_unitario,
+            desconto: i.desconto_item,
+            descricao: i.descricao_snapshot,
+            custom_id: i.referencia_snapshot,
+          }))
+        }
+      }
+
+      if (!budget) {
         return new Response(JSON.stringify({ error: 'Orçamento não encontrado.' }), {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -142,12 +181,12 @@ Deno.serve(async (req: Request) => {
       const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
       let page = pdfDoc.addPage()
       const { width, height } = page.getSize()
-      let y = height - 50
 
-      let logoBottomY = height - 40
+      let logoBottomY = height - 20
       let headerTextX = 40
-      const maxLogoWidth = 100
-      const maxLogoHeight = 50
+      const maxLogoWidth = 140
+      const maxLogoHeight = 45 // reduced size for compact layout
+      let textY = height - 20
 
       if (logoBase64) {
         try {
@@ -164,9 +203,8 @@ Deno.serve(async (req: Request) => {
           const imgWidth = image.width * scale
           const imgHeight = image.height * scale
 
-          const containerX = 40
-          const logoX = containerX
-          const logoY = height - 40 - imgHeight
+          const logoX = 40
+          const logoY = height - 20 - imgHeight // tighter top margin
 
           page.drawImage(image, {
             x: logoX,
@@ -175,49 +213,58 @@ Deno.serve(async (req: Request) => {
             height: imgHeight,
           })
 
-          headerTextX = containerX + imgWidth + 15
           logoBottomY = logoY
+          textY = logoBottomY - 15 // text immediately below the logo
         } catch (e) {
           console.error('Error embedding logo:', e)
         }
       }
 
       const empresa = budget.empresa || {}
-      const empresaNomeLogo = empresa.nome || 'Luce Nera'
-      const empresaNomeAssinatura = empresa.nome || 'Lucenera'
+      const empresaNomeLogo = empresa.nome_fantasia || empresa.nome || 'Luce Nera'
+      const empresaNomeAssinatura = empresa.nome_fantasia || empresa.nome || 'Lucenera'
       const empresaRazao = empresa.razao_social || 'Manoella Zauith Leite Lopes'
       const empresaEnd = `${empresa.cep || '14.025-270'} ${empresa.logradouro || 'Rua Ayrton Roxo'} ${empresa.numero || '867'}`
       const empresaCidade = `${empresa.bairro || 'Alto Da Boa Vista'}, ${empresa.cidade || 'Ribeirao Preto'}/${empresa.estado || 'SP'}`
 
-      let textY = height - 45
-      page.drawText(empresaNomeLogo, { x: headerTextX, y: textY, size: 14, font: boldFont })
+      page.drawText(empresaNomeLogo, { x: headerTextX, y: textY, size: 12, font: boldFont })
       page.drawText(empresaRazao, { x: headerTextX, y: textY - 12, size: 8, font })
       page.drawText(empresaEnd, { x: headerTextX, y: textY - 22, size: 8, font })
       page.drawText(empresaCidade, { x: headerTextX, y: textY - 32, size: 8, font })
       page.drawText('(16) 3442 - 3545', { x: headerTextX, y: textY - 42, size: 8, font })
 
-      page.drawText('1 de 1', { x: width - 60, y: height - 45, size: 9, font: boldFont })
+      const companyTextBottomY = textY - 42
+
+      // Right Side - Approval Section
+      page.drawText('1 de 1', { x: width - 60, y: height - 20, size: 9, font: boldFont })
+
+      const approvalY = height - 35
       page.drawLine({
-        start: { x: width - 200, y: height - 70 },
-        end: { x: width - 40, y: height - 70 },
+        start: { x: width - 200, y: approvalY },
+        end: { x: width - 40, y: approvalY },
         thickness: 1,
       })
-      page.drawText('Aprovação do Cliente', { x: width - 195, y: height - 65, size: 8, font })
+      page.drawText('Aprovação do Cliente', { x: width - 195, y: approvalY + 3, size: 8, font })
 
+      const signatureY = approvalY - 30
       page.drawLine({
-        start: { x: width - 200, y: height - 95 },
-        end: { x: width - 40, y: height - 95 },
+        start: { x: width - 200, y: signatureY },
+        end: { x: width - 40, y: signatureY },
         thickness: 1,
       })
-      page.drawText(empresaNomeAssinatura, { x: width - 195, y: height - 90, size: 8, font })
+      page.drawText(empresaNomeAssinatura, { x: width - 195, y: signatureY + 3, size: 8, font })
 
+      const dateY = signatureY - 15
       page.drawText(
         `Data Impressão ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
-        { x: width - 150, y: height - 105, size: 6, font, color: rgb(0.4, 0.4, 0.4) },
+        { x: width - 150, y: dateY, size: 6, font, color: rgb(0.4, 0.4, 0.4) },
       )
 
-      const lowestHeaderY = Math.min(textY - 50, logoBottomY - 10, height - 115)
-      y = lowestHeaderY - 10
+      // Calculate Lowest Y coordinate between Left (Company Info) and Right (Approval Section)
+      const lowestHeaderY = Math.min(companyTextBottomY, dateY)
+
+      // Add safe vertical margin below the lowest header element
+      let y = lowestHeaderY - 20
       page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 2 })
 
       y -= 25

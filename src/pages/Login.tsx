@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,8 +11,15 @@ export default function Login() {
   const [email, setEmail] = useState('pedro@lucenera.com.br')
   const [password, setPassword] = useState('Skip@Pass')
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, user, loading: authLoading } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (user && !loading && !authLoading) {
+      navigate('/')
+    }
+  }, [user, loading, authLoading, navigate])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,8 +29,11 @@ export default function Login() {
       toast({
         variant: 'destructive',
         title: 'Erro ao entrar',
-        description: error.message,
+        description:
+          error.message === 'Invalid login credentials' ? 'Credenciais inválidas' : error.message,
       })
+    } else {
+      navigate('/')
     }
     setLoading(false)
   }
@@ -42,6 +54,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -51,10 +64,18 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                'Entrar'
+              )}
             </Button>
           </form>
         </CardContent>

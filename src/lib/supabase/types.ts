@@ -9,6 +9,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      boletos: {
+        Row: {
+          data_pagamento: string | null
+          empresa_id: string | null
+          id: string
+          nome_pagador: string | null
+          nosso_numero: string
+          status: string
+          valor: number | null
+          valor_pago: number | null
+          vencimento: string | null
+        }
+        Insert: {
+          data_pagamento?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome_pagador?: string | null
+          nosso_numero: string
+          status?: string
+          valor?: number | null
+          valor_pago?: number | null
+          vencimento?: string | null
+        }
+        Update: {
+          data_pagamento?: string | null
+          empresa_id?: string | null
+          id?: string
+          nome_pagador?: string | null
+          nosso_numero?: string
+          status?: string
+          valor?: number | null
+          valor_pago?: number | null
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'empresas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['empresa_id']
+          },
+        ]
+      }
       categorias_financeiras: {
         Row: {
           ativo: boolean
@@ -3250,6 +3301,51 @@ export type Database = {
         }
         Relationships: []
       }
+      retornos_processados: {
+        Row: {
+          data_upload: string
+          empresa_id: string | null
+          id: string
+          nome_arquivo: string
+          processado: boolean | null
+          quantidade_confirmacoes: number | null
+          quantidade_liquidacoes: number | null
+        }
+        Insert: {
+          data_upload?: string
+          empresa_id?: string | null
+          id?: string
+          nome_arquivo: string
+          processado?: boolean | null
+          quantidade_confirmacoes?: number | null
+          quantidade_liquidacoes?: number | null
+        }
+        Update: {
+          data_upload?: string
+          empresa_id?: string | null
+          id?: string
+          nome_arquivo?: string
+          processado?: boolean | null
+          quantidade_confirmacoes?: number | null
+          quantidade_liquidacoes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'empresas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['empresa_id']
+          },
+        ]
+      }
       revenda_ubiqua: {
         Row: {
           cod_fornecedor: number | null
@@ -5873,6 +5969,16 @@ export const Constants = {
 // --- COLUMN TYPES (actual PostgreSQL types) ---
 // Use this to know the real database type when writing migrations.
 // "string" in TypeScript types above may be uuid, text, varchar, timestamptz, etc.
+// Table: boletos
+//   id: uuid (not null, default: gen_random_uuid())
+//   nosso_numero: text (not null)
+//   nome_pagador: text (nullable)
+//   valor: numeric (nullable)
+//   vencimento: date (nullable)
+//   data_pagamento: date (nullable)
+//   valor_pago: numeric (nullable)
+//   status: text (not null, default: 'Pendente'::text)
+//   empresa_id: uuid (nullable)
 // Table: categorias_financeiras
 //   id: uuid (not null, default: gen_random_uuid())
 //   nome: text (not null)
@@ -6421,6 +6527,14 @@ export const Constants = {
 //   items: jsonb (not null, default: '[]'::jsonb)
 //   data_aprovacao: timestamp with time zone (nullable)
 //   created_at: timestamp with time zone (not null, default: now())
+// Table: retornos_processados
+//   id: uuid (not null, default: gen_random_uuid())
+//   nome_arquivo: text (not null)
+//   data_upload: timestamp with time zone (not null, default: now())
+//   empresa_id: uuid (nullable)
+//   quantidade_liquidacoes: integer (nullable)
+//   quantidade_confirmacoes: integer (nullable)
+//   processado: boolean (nullable, default: true)
 // Table: revenda_ubiqua
 //   id: integer (not null, default: nextval('revenda_ubiqua_id_seq'::regclass))
 //   referencia: text (not null)
@@ -7117,6 +7231,10 @@ export const Constants = {
 //   cliente: text (nullable)
 
 // --- CONSTRAINTS ---
+// Table: boletos
+//   FOREIGN KEY boletos_empresa_id_fkey: FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+//   UNIQUE boletos_nosso_numero_key: UNIQUE (nosso_numero)
+//   PRIMARY KEY boletos_pkey: PRIMARY KEY (id)
 // Table: categorias_financeiras
 //   CHECK categorias_financeiras_grupo_check: CHECK ((grupo = ANY (ARRAY['fixo'::text, 'variavel'::text, 'investimento'::text, 'transferencia'::text])))
 //   UNIQUE categorias_financeiras_nome_key: UNIQUE (nome)
@@ -7346,6 +7464,9 @@ export const Constants = {
 //   FOREIGN KEY quote_history_quote_id_fkey: FOREIGN KEY (quote_id) REFERENCES quotes(id) ON DELETE CASCADE
 // Table: quotes
 //   PRIMARY KEY quotes_pkey: PRIMARY KEY (id)
+// Table: retornos_processados
+//   FOREIGN KEY retornos_processados_empresa_id_fkey: FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+//   PRIMARY KEY retornos_processados_pkey: PRIMARY KEY (id)
 // Table: revenda_ubiqua
 //   FOREIGN KEY fk_empresa: FOREIGN KEY (empresa_id) REFERENCES empresas(id)
 //   PRIMARY KEY revenda_ubiqua_pkey: PRIMARY KEY (id)
@@ -7403,6 +7524,16 @@ export const Constants = {
 //   PRIMARY KEY vendas_marca_pkey: PRIMARY KEY (id)
 
 // --- ROW LEVEL SECURITY POLICIES ---
+// Table: boletos
+//   Policy "authenticated_delete_boletos" (DELETE, PERMISSIVE) roles={authenticated}
+//     USING: true
+//   Policy "authenticated_insert_boletos" (INSERT, PERMISSIVE) roles={authenticated}
+//     WITH CHECK: true
+//   Policy "authenticated_select_boletos" (SELECT, PERMISSIVE) roles={authenticated}
+//     USING: true
+//   Policy "authenticated_update_boletos" (UPDATE, PERMISSIVE) roles={authenticated}
+//     USING: true
+//     WITH CHECK: true
 // Table: categorias_financeiras
 //   Policy "catfin_delete" (DELETE, PERMISSIVE) roles={authenticated}
 //     USING: (EXISTS ( SELECT 1    FROM usuarios u   WHERE ((u.id = ( SELECT auth.uid() AS uid)) AND (u.role = ANY (ARRAY['admin'::usuario_role, 'gerente'::usuario_role])))))
@@ -7772,6 +7903,16 @@ export const Constants = {
 //     USING: true
 // Table: quotes
 //   Policy "all_quotes_auth" (ALL, PERMISSIVE) roles={public}
+//     USING: true
+//     WITH CHECK: true
+// Table: retornos_processados
+//   Policy "authenticated_delete_retornos" (DELETE, PERMISSIVE) roles={authenticated}
+//     USING: true
+//   Policy "authenticated_insert_retornos" (INSERT, PERMISSIVE) roles={authenticated}
+//     WITH CHECK: true
+//   Policy "authenticated_select_retornos" (SELECT, PERMISSIVE) roles={authenticated}
+//     USING: true
+//   Policy "authenticated_update_retornos" (UPDATE, PERMISSIVE) roles={authenticated}
 //     USING: true
 //     WITH CHECK: true
 // Table: revenda_ubiqua
@@ -8886,6 +9027,8 @@ export const Constants = {
 //   update_vendas_updated_at: CREATE TRIGGER update_vendas_updated_at BEFORE UPDATE ON public.vendas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 
 // --- INDEXES ---
+// Table: boletos
+//   CREATE UNIQUE INDEX boletos_nosso_numero_key ON public.boletos USING btree (nosso_numero)
 // Table: categorias_financeiras
 //   CREATE UNIQUE INDEX categorias_financeiras_nome_key ON public.categorias_financeiras USING btree (nome)
 // Table: categorias_produto

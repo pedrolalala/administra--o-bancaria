@@ -49,8 +49,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error }
   }
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error }
+
+    if (data.user) {
+      const { data: userData, error: userError } = await supabase
+        .from('usuarios')
+        .select('ativo')
+        .eq('id', data.user.id)
+        .single()
+
+      if (userError || userData?.ativo === false) {
+        await supabase.auth.signOut()
+        return {
+          error: new Error('Sua conta está desativada. Entre em contato com o administrador.'),
+        }
+      }
+    }
+
+    return { error: null }
   }
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
