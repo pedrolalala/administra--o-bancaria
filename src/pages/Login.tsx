@@ -1,37 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
+import { Label } from '@/components/ui/label'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card'
+import { FileUp } from 'lucide-react'
 
 export default function Login() {
-  const [email, setEmail] = useState('pedro@lucenera.com.br')
-  const [password, setPassword] = useState('Skip@Pass')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn, user, loading: authLoading } = useAuth()
-  const { toast } = useToast()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    if (user && !loading && !authLoading) {
-      navigate('/')
-    }
-  }, [user, loading, authLoading, navigate])
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
     setLoading(true)
-    const { error } = await signIn(email, password)
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao entrar',
-        description:
-          error.message === 'Invalid login credentials' ? 'Credenciais inválidas' : error.message,
-      })
+    const { error: signInError } = await signIn(email, password)
+    if (signInError) {
+      setError(signInError.message)
     } else {
       navigate('/')
     }
@@ -40,45 +37,51 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Luce Nera</CardTitle>
-          <CardDescription>Faça login para acessar o sistema</CardDescription>
+      <Card className="w-full max-w-md shadow-lg border-0">
+        <CardHeader className="space-y-3 text-center pb-8">
+          <div className="mx-auto bg-primary/10 p-3 rounded-xl w-16 h-16 flex items-center justify-center text-primary mb-2">
+            <FileUp className="h-8 w-8" />
+          </div>
+          <CardTitle className="text-2xl font-bold tracking-tight text-slate-800">
+            Lucenera
+          </CardTitle>
+          <CardDescription>Faça login para acessar o sistema de Retorno Bancário.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm font-medium text-center">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
               <Input
+                id="email"
                 type="email"
-                placeholder="E-mail"
+                placeholder="pedro@lucenera.com.br"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
               <Input
+                id="password"
                 type="password"
-                placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
+          </CardContent>
+          <CardFooter>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                'Entrar'
-              )}
+              {loading ? 'Entrando...' : 'Entrar'}
             </Button>
-          </form>
-        </CardContent>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   )

@@ -16,8 +16,8 @@ export function parseCnab400(content: string): CnabData {
       continue
     }
 
-    // Skip if line is too short, but be somewhat forgiving for trailing spaces
-    if (line.length < 390) continue
+    // Be forgiving for trailing spaces, but ensure minimum length for data fields
+    if (line.length < 350) continue
 
     const recordType = line.substring(0, 1)
 

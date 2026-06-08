@@ -6,9 +6,8 @@ import { BoletosTable } from '@/components/cnab/BoletosTable'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { CnabData } from '@/types/cnab'
-import { mockCnabData } from '@/lib/mock-data'
 import { parseCnab400 } from '@/lib/cnab-parser'
-import { Info, CheckCircle, AlertCircle, Database, Building } from 'lucide-react'
+import { CheckCircle, AlertCircle, Database } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -24,9 +23,8 @@ import { supabase } from '@/lib/supabase/client'
 export default function Index() {
   const { toast } = useToast()
 
-  const [data, setData] = useState<CnabData>(mockCnabData)
-  const [isDemo, setIsDemo] = useState(true)
-  const [currentFileName, setCurrentFileName] = useState<string | null>('RETORNO_DEMO_01.RET')
+  const [data, setData] = useState<CnabData | null>(null)
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null)
 
   const [empresas, setEmpresas] = useState<any[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
@@ -50,6 +48,7 @@ export default function Index() {
     supabase
       .from('empresas')
       .select('id, nome, cnpj')
+      .order('nome')
       .then(({ data }) => {
         if (data) setEmpresas(data)
       })
@@ -72,15 +71,16 @@ export default function Index() {
   }, [currentFileName, selectedCompany])
 
   const canProcess = useMemo(() => {
-    return !isAlreadyProcessedState && !processSuccess && selectedCompany && !validationError
-  }, [isAlreadyProcessedState, processSuccess, selectedCompany, validationError])
+    return (
+      !isAlreadyProcessedState && !processSuccess && selectedCompany && !validationError && data
+    )
+  }, [isAlreadyProcessedState, processSuccess, selectedCompany, validationError, data])
 
   const handleProcessFile = useCallback(
     (content: string, fileName: string) => {
       try {
         const parsed = parseCnab400(content)
         setData(parsed)
-        setIsDemo(false)
         setCurrentFileName(fileName)
         setExceptions([])
         setProcessSuccess(null)
@@ -88,7 +88,7 @@ export default function Index() {
 
         if (selectedCompany) {
           toast({
-            title: 'Arquivo processado',
+            title: 'Arquivo lido com sucesso',
             description: `${selectedCompany.nome} - ${parsed.records.length} registros encontrados.`,
           })
         }
@@ -116,7 +116,7 @@ export default function Index() {
   )
 
   const handleConfirmarBaixa = useCallback(async () => {
-    if (!currentFileName || isAlreadyProcessedState || !selectedCompany) return
+    if (!currentFileName || isAlreadyProcessedState || !selectedCompany || !data) return
     let liquidacoesProcessed = 0
     let confirmacoesProcessed = 0
     const newExceptions: { nossoNumero: string; tipo: string }[] = []
@@ -176,16 +176,15 @@ export default function Index() {
       title: 'Baixa concluída',
       description: `Processamento finalizado com sucesso.`,
     })
-  }, [currentFileName, isAlreadyProcessedState, data.records, selectedCompany, toast])
+  }, [currentFileName, isAlreadyProcessedState, data, selectedCompany, toast])
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20">
       <section className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight">Retorno Bancário</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Retorno Bancário Bradesco</h2>
         <p className="text-muted-foreground max-w-3xl">
-          Faça o upload do arquivo de retorno do Bradesco (CNAB 400) para visualizar as liquidações
-          e confirmações de registro. O sistema identifica automaticamente a empresa pelo CNPJ no
-          cabeçalho e sincroniza os status dos boletos.
+          Selecione a empresa e faça o upload do arquivo de retorno do Bradesco (CNAB 400) para
+          processar as liquidações e confirmações de registro.
         </p>
       </section>
 
@@ -201,7 +200,9 @@ export default function Index() {
 
         <TabsContent value="process" className="space-y-8">
           <div className="flex flex-col gap-3 max-w-md">
-            <Label htmlFor="company-select">Empresa</Label>
+            <Label htmlFor="company-select">
+              Empresa <span className="text-red-500">*</span>
+            </Label>
             <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
               <SelectTrigger id="company-select" className="w-full">
                 <SelectValue placeholder="Selecione uma empresa" />
@@ -221,17 +222,6 @@ export default function Index() {
             onError={handleError}
             companySelected={!!selectedCompanyId}
           />
-
-          {isDemo && (
-            <Alert className="bg-sky-50 border-sky-200 text-sky-800 animate-slide-down">
-              <Info className="h-4 w-4 text-sky-600" />
-              <AlertTitle className="text-sky-900 font-semibold">Modo de Demonstração</AlertTitle>
-              <AlertDescription className="text-sky-700/90">
-                O arquivo padrão foi carregado. Faça o upload de um arquivo CNAB 400 real para
-                processar seus dados.
-              </AlertDescription>
-            </Alert>
-          )}
 
           {validationError && (
             <Alert
@@ -291,27 +281,29 @@ export default function Index() {
             </div>
           )}
 
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-emerald-500" />
-                Resumo Financeiro {selectedCompany ? `- ${selectedCompany.nome}` : ''}
-              </h3>
-              <SummaryCards summary={data.summary} />
-            </div>
+          {data && (
+            <div className="space-y-6 animate-fade-in-up">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  Resumo do Arquivo {selectedCompany ? `- ${selectedCompany.nome}` : ''}
+                </h3>
+                <SummaryCards summary={data.summary} />
+              </div>
 
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos</h3>
-              <DataTable records={data.records} empresaNome={selectedCompany?.nome} />
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Detalhamento de Títulos lidos</h3>
+                <DataTable records={data.records} empresaNome={selectedCompany?.nome} />
+              </div>
             </div>
-          </div>
+          )}
         </TabsContent>
 
         <TabsContent value="database" className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-            <h3 className="text-lg font-semibold">Tabela de Boletos</h3>
+            <h3 className="text-lg font-semibold">Títulos Sincronizados</h3>
             <span className="text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
-              Sincronizado com o banco de dados
+              Tabela de Boletos do Banco de Dados
             </span>
           </div>
           <BoletosTable />
@@ -319,16 +311,20 @@ export default function Index() {
       </Tabs>
 
       {/* Action Footer Bar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-[16rem] p-4 bg-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex justify-end">
-        <Button
-          size="lg"
-          disabled={!canProcess}
-          onClick={handleConfirmarBaixa}
-          className="font-semibold shadow-sm w-full sm:w-auto"
-        >
-          Confirmar Baixa de {data.summary.totalLiquidacoes} Títulos
-        </Button>
-      </div>
+      {data && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+          <div className="max-w-7xl mx-auto w-full flex justify-end">
+            <Button
+              size="lg"
+              disabled={!canProcess}
+              onClick={handleConfirmarBaixa}
+              className="font-semibold shadow-sm w-full sm:w-auto"
+            >
+              Confirmar Baixa de {data.summary.totalLiquidacoes} Títulos
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
