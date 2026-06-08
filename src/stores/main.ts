@@ -74,6 +74,10 @@ const store = {
   boletos: [...initialBoletos],
   retornos: [] as RetornoProcessado[],
   listeners: new Set<() => void>(),
+  _snapshot: {
+    boletos: [...initialBoletos],
+    retornos: [] as RetornoProcessado[],
+  },
 
   subscribe(listener: () => void) {
     store.listeners.add(listener)
@@ -81,7 +85,11 @@ const store = {
   },
 
   getSnapshot() {
-    return {
+    return store._snapshot
+  },
+
+  updateSnapshot() {
+    store._snapshot = {
       boletos: store.boletos,
       retornos: store.retornos,
     }
@@ -93,6 +101,7 @@ const store = {
       const newBoletos = [...store.boletos]
       newBoletos[index] = { ...newBoletos[index], ...updates }
       store.boletos = newBoletos
+      store.updateSnapshot()
       store.emitChange()
       return true
     }
@@ -101,6 +110,7 @@ const store = {
 
   addRetorno(retorno: RetornoProcessado) {
     store.retornos = [...store.retornos, retorno]
+    store.updateSnapshot()
     store.emitChange()
   },
 
