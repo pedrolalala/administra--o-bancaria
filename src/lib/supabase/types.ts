@@ -16,7 +16,11 @@ export type Database = {
           id: string
           nome_pagador: string | null
           nosso_numero: string
+          numero_documento: string | null
+          parcela_id: string | null
+          projeto_id: string | null
           status: string
+          tipo: string | null
           valor: number | null
           valor_pago: number | null
           vencimento: string | null
@@ -27,7 +31,11 @@ export type Database = {
           id?: string
           nome_pagador?: string | null
           nosso_numero: string
+          numero_documento?: string | null
+          parcela_id?: string | null
+          projeto_id?: string | null
           status?: string
+          tipo?: string | null
           valor?: number | null
           valor_pago?: number | null
           vencimento?: string | null
@@ -38,7 +46,11 @@ export type Database = {
           id?: string
           nome_pagador?: string | null
           nosso_numero?: string
+          numero_documento?: string | null
+          parcela_id?: string | null
+          projeto_id?: string | null
           status?: string
+          tipo?: string | null
           valor?: number | null
           valor_pago?: number | null
           vencimento?: string | null
@@ -57,6 +69,90 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'vw_transacoes_completas'
             referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'boletos_parcela_id_fkey'
+            columns: ['parcela_id']
+            isOneToOne: false
+            referencedRelation: 'projeto_parcelas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_parcela_id_fkey'
+            columns: ['parcela_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['parcela_crm_id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'projetos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_financeiro_projetos'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_projetos_dashboard'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_projetos_pipeline'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_projetos_resumo'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_projetos_sem_empresa'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_projetos_sem_responsavel'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_separacoes_agenda'
+            referencedColumns: ['projeto_id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['projeto_id']
+          },
+          {
+            foreignKeyName: 'boletos_projeto_id_fkey'
+            columns: ['projeto_id']
+            isOneToOne: false
+            referencedRelation: 'vw_vendas_por_projeto'
+            referencedColumns: ['projeto_id']
           },
         ]
       }
@@ -1949,6 +2045,56 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'vw_vendas_por_projeto'
             referencedColumns: ['projeto_id']
+          },
+        ]
+      }
+      notas_fiscais: {
+        Row: {
+          arquiteto: string | null
+          arquivo_url: string | null
+          boleto_id: string | null
+          created_at: string | null
+          data_emissao: string | null
+          fornecedor: string | null
+          id: string
+          numero_nf: string
+          serie: string | null
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          arquiteto?: string | null
+          arquivo_url?: string | null
+          boleto_id?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          fornecedor?: string | null
+          id?: string
+          numero_nf: string
+          serie?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          arquiteto?: string | null
+          arquivo_url?: string | null
+          boleto_id?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          fornecedor?: string | null
+          id?: string
+          numero_nf?: string
+          serie?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'notas_fiscais_boleto_id_fkey'
+            columns: ['boleto_id']
+            isOneToOne: false
+            referencedRelation: 'boletos'
+            referencedColumns: ['id']
           },
         ]
       }

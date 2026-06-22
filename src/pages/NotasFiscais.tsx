@@ -131,7 +131,7 @@ export default function NotasFiscaisPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-in pb-20 w-full mx-auto mt-8">
+    <div className="flex flex-col gap-8 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Notas Fiscais</h2>
         <p className="text-muted-foreground">Registre notas e vincule com os boletos do sistema.</p>

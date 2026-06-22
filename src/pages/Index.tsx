@@ -261,8 +261,8 @@ export default function Index() {
   const handleProcessAction = isRemessa ? handleImportarRemessa : handleConfirmarBaixa
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-in pb-20 w-full max-w-4xl mx-auto">
-      <section className="flex flex-col gap-2 text-center pt-8">
+    <div className="flex flex-col gap-8 animate-fade-in pb-20 p-6 w-full max-w-4xl mx-auto">
+      <section className="flex flex-col gap-2 text-center">
         <h2 className="text-3xl font-bold tracking-tight">Retorno Bancário Bradesco</h2>
         <p className="text-muted-foreground mx-auto max-w-2xl">
           Selecione a empresa e faça o upload do arquivo de remessa ou retorno do Bradesco (CNAB

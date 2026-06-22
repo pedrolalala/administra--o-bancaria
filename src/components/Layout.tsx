@@ -11,7 +11,8 @@ export default function Layout() {
   const pathname = location.pathname
 
   const navLinks = [
-    { name: 'Retorno Bancário', path: '/' },
+    { name: 'Consultar Duplicatas', path: '/duplicatas' },
+    { name: 'Retorno de Boletos', path: '/retorno-boletos' },
     { name: 'Controle de Boletos', path: '/boletos' },
     { name: 'Gerar Remessa', path: '/remessa' },
     { name: 'Notas Fiscais', path: '/notas-fiscais' },
@@ -78,11 +79,11 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-x-hidden p-6 pb-24 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-hidden flex flex-col w-full">
         <Outlet />
       </main>
 
-      <footer className="h-14 border-t bg-white flex items-center justify-between px-6 text-xs text-muted-foreground mt-auto">
+      <footer className="h-14 border-t bg-white flex items-center justify-between px-6 text-xs text-muted-foreground mt-auto shrink-0">
         <p>© {new Date().getFullYear()} Lucenera. Todos os direitos reservados.</p>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-500"></div>

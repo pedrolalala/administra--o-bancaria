@@ -7,6 +7,8 @@ import Index from './pages/Index'
 import BoletosPage from './pages/Boletos'
 import RemessaPage from './pages/Remessa'
 import NotasFiscaisPage from './pages/NotasFiscais'
+import ConsultarDuplicatas from './pages/ConsultarDuplicatas'
+import RetornoBoletos from './pages/RetornoBoletos'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import Layout from './components/Layout'
@@ -30,7 +32,10 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Index />} />
+        <Route path="/" element={<Navigate to="/duplicatas" replace />} />
+        <Route path="/duplicatas" element={<ConsultarDuplicatas />} />
+        <Route path="/retorno-boletos" element={<RetornoBoletos />} />
+        <Route path="/antigo-retorno" element={<Index />} />
         <Route path="/boletos" element={<BoletosPage />} />
         <Route path="/remessa" element={<RemessaPage />} />
         <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />

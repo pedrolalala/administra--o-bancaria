@@ -204,8 +204,8 @@ export default function BoletosPage() {
   const availableParcelas = parcelas.filter((p) => p.projeto_id === formData.projeto_id)
 
   return (
-    <div className="flex flex-col gap-6 animate-fade-in pb-20 w-full mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-8">
+    <div className="flex flex-col gap-6 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Controle de Boletos</h2>
           <p className="text-muted-foreground">Gerencie todos os títulos da empresa.</p>
