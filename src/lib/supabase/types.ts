@@ -12,48 +12,66 @@ export type Database = {
       boletos: {
         Row: {
           data_pagamento: string | null
+          emissao: string | null
           empresa_id: string | null
+          fatura: string | null
           id: string
           nome_pagador: string | null
           nosso_numero: string
+          num_parcela: number | null
           numero_documento: string | null
           parcela_id: string | null
           projeto_id: string | null
           status: string
           tipo: string | null
+          tipo_operacao: string | null
+          total_parcelas: number | null
           valor: number | null
           valor_pago: number | null
           vencimento: string | null
+          venda: string | null
         }
         Insert: {
           data_pagamento?: string | null
+          emissao?: string | null
           empresa_id?: string | null
+          fatura?: string | null
           id?: string
           nome_pagador?: string | null
           nosso_numero: string
+          num_parcela?: number | null
           numero_documento?: string | null
           parcela_id?: string | null
           projeto_id?: string | null
           status?: string
           tipo?: string | null
+          tipo_operacao?: string | null
+          total_parcelas?: number | null
           valor?: number | null
           valor_pago?: number | null
           vencimento?: string | null
+          venda?: string | null
         }
         Update: {
           data_pagamento?: string | null
+          emissao?: string | null
           empresa_id?: string | null
+          fatura?: string | null
           id?: string
           nome_pagador?: string | null
           nosso_numero?: string
+          num_parcela?: number | null
           numero_documento?: string | null
           parcela_id?: string | null
           projeto_id?: string | null
           status?: string
           tipo?: string | null
+          tipo_operacao?: string | null
+          total_parcelas?: number | null
           valor?: number | null
           valor_pago?: number | null
           vencimento?: string | null
+          venda?: string | null
         }
         Relationships: [
           {
@@ -62,6 +80,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'boletos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'boletos_empresa_id_fkey'
@@ -263,6 +309,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'contas_bancarias_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'contas_bancarias_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'contas_bancarias_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'contas_bancarias_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'contas_bancarias_empresa_id_fkey'
@@ -1409,6 +1483,34 @@ export type Database = {
             foreignKeyName: 'folha_pagamento_empresa_id_fkey'
             columns: ['empresa_id']
             isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'folha_pagamento_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'folha_pagamento_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'folha_pagamento_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'folha_pagamento_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
             referencedRelation: 'vw_transacoes_completas'
             referencedColumns: ['empresa_id']
           },
@@ -1432,6 +1534,118 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'vw_transacoes_completas'
             referencedColumns: ['funcionario_id']
+          },
+        ]
+      }
+      fornecedores: {
+        Row: {
+          agencia: string | null
+          banco: string | null
+          categoria: string | null
+          cep: string | null
+          chave_pix: string | null
+          cidade: string | null
+          cnpj_cpf: string | null
+          conta: string | null
+          created_at: string | null
+          email: string | null
+          empresa_id: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          status: string | null
+          telefone: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          agencia?: string | null
+          banco?: string | null
+          categoria?: string | null
+          cep?: string | null
+          chave_pix?: string | null
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          conta?: string | null
+          created_at?: string | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          status?: string | null
+          telefone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          agencia?: string | null
+          banco?: string | null
+          categoria?: string | null
+          cep?: string | null
+          chave_pix?: string | null
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          conta?: string | null
+          created_at?: string | null
+          email?: string | null
+          empresa_id?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          status?: string | null
+          telefone?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'empresas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fornecedores_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['empresa_id']
           },
         ]
       }
@@ -1504,6 +1718,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'funcionarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'funcionarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'funcionarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'funcionarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'funcionarios_empresa_id_fkey'
@@ -1809,6 +2051,45 @@ export type Database = {
           },
         ]
       }
+      logs_auditoria: {
+        Row: {
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          ip: string | null
+          observacao: string | null
+          operacao: string
+          registro_id: string | null
+          tabela: string
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          ip?: string | null
+          observacao?: string | null
+          operacao: string
+          registro_id?: string | null
+          tabela: string
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          ip?: string | null
+          observacao?: string | null
+          operacao?: string
+          registro_id?: string | null
+          tabela?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       logs_operacoes: {
         Row: {
           acao: string
@@ -1933,6 +2214,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'negociacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'negociacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'negociacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'negociacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'negociacoes_empresa_id_fkey'
@@ -2287,6 +2596,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'orcamentos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'orcamentos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'orcamentos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'orcamentos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'orcamentos_empresa_id_fkey'
@@ -3571,6 +3908,34 @@ export type Database = {
             foreignKeyName: 'projetos_empresa_id_fkey'
             columns: ['empresa_id']
             isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
             referencedRelation: 'vw_transacoes_completas'
             referencedColumns: ['empresa_id']
           },
@@ -3693,6 +4058,140 @@ export type Database = {
         }
         Relationships: []
       }
+      remessas: {
+        Row: {
+          arquivo_remessa: string | null
+          arquivo_retorno: string | null
+          codigo_barras: string | null
+          created_at: string | null
+          data_pagamento: string | null
+          descricao: string
+          empresa_id: string | null
+          fornecedor_id: string | null
+          id: string
+          linha_digitavel: string | null
+          nosso_numero: string | null
+          observacoes: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+          valor: number
+          valor_pago: number | null
+          vencimento: string | null
+        }
+        Insert: {
+          arquivo_remessa?: string | null
+          arquivo_retorno?: string | null
+          codigo_barras?: string | null
+          created_at?: string | null
+          data_pagamento?: string | null
+          descricao: string
+          empresa_id?: string | null
+          fornecedor_id?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          nosso_numero?: string | null
+          observacoes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number
+          valor_pago?: number | null
+          vencimento?: string | null
+        }
+        Update: {
+          arquivo_remessa?: string | null
+          arquivo_retorno?: string | null
+          codigo_barras?: string | null
+          created_at?: string | null
+          data_pagamento?: string | null
+          descricao?: string
+          empresa_id?: string | null
+          fornecedor_id?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          nosso_numero?: string | null
+          observacoes?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number
+          valor_pago?: number | null
+          vencimento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'empresas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'fornecedores'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['fornecedor_id']
+          },
+        ]
+      }
       retornos_processados: {
         Row: {
           data_upload: string
@@ -3728,6 +4227,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'retornos_processados_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'retornos_processados_empresa_id_fkey'
@@ -3833,6 +4360,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'fk_empresa'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fk_empresa'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fk_empresa'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'fk_empresa'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'fk_empresa'
@@ -5098,6 +5653,34 @@ export type Database = {
             foreignKeyName: 'transacoes_empresa_id_fkey'
             columns: ['empresa_id']
             isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'transacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'transacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'transacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'transacoes_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
             referencedRelation: 'vw_transacoes_completas'
             referencedColumns: ['empresa_id']
           },
@@ -5298,6 +5881,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'usuarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'usuarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'usuarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'usuarios_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'usuarios_empresa_id_fkey'
@@ -5762,6 +6373,36 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_fornecedores_remessas: {
+        Row: {
+          cnpj_cpf: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          id: string | null
+          nome: string | null
+          status: string | null
+          total_pago: number | null
+          total_remessas: number | null
+          total_valor_remessas: number | null
+        }
+        Relationships: []
+      }
+      vw_fornecedores_resumo: {
+        Row: {
+          categoria: string | null
+          cnpj_cpf: string | null
+          created_at: string | null
+          email: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          id: string | null
+          nome: string | null
+          status: string | null
+          telefone: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       vw_funcionarios_completo: {
         Row: {
           ativo: boolean | null
@@ -5794,6 +6435,20 @@ export type Database = {
           justificativa: string | null
           periodo_id: string | null
           status: string | null
+        }
+        Relationships: []
+      }
+      vw_logs_auditoria_recentes: {
+        Row: {
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string | null
+          observacao: string | null
+          operacao: string | null
+          registro_id: string | null
+          tabela: string | null
+          usuario_id: string | null
         }
         Relationships: []
       }
@@ -5890,6 +6545,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: 'empresas'
             referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'projetos_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
           },
           {
             foreignKeyName: 'projetos_empresa_id_fkey'
@@ -6072,6 +6755,136 @@ export type Database = {
           total: number | null
         }
         Relationships: []
+      }
+      vw_remessas_completa: {
+        Row: {
+          created_at: string | null
+          data_pagamento: string | null
+          descricao: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          fornecedor_cnpj_cpf: string | null
+          fornecedor_id: string | null
+          fornecedor_nome: string | null
+          id: string | null
+          linha_digitavel: string | null
+          nosso_numero: string | null
+          observacoes: string | null
+          status: string | null
+          updated_at: string | null
+          valor: number | null
+          valor_pago: number | null
+          vencimento: string | null
+        }
+        Relationships: []
+      }
+      vw_remessas_resumo_status: {
+        Row: {
+          empresa_id: string | null
+          empresa_nome: string | null
+          quantidade: number | null
+          status: string | null
+          valor_pago_total: number | null
+          valor_total: number | null
+        }
+        Relationships: []
+      }
+      vw_remessas_vencimento: {
+        Row: {
+          arquivo_remessa: string | null
+          arquivo_retorno: string | null
+          codigo_barras: string | null
+          created_at: string | null
+          data_pagamento: string | null
+          descricao: string | null
+          empresa_id: string | null
+          empresa_nome: string | null
+          fornecedor_id: string | null
+          fornecedor_nome: string | null
+          id: string | null
+          linha_digitavel: string | null
+          nosso_numero: string | null
+          observacoes: string | null
+          situacao_vencimento: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+          valor: number | null
+          valor_pago: number | null
+          vencimento: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'empresas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_resumo_status'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_empresa_id_fkey'
+            columns: ['empresa_id']
+            isOneToOne: false
+            referencedRelation: 'vw_transacoes_completas'
+            referencedColumns: ['empresa_id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'fornecedores'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_remessas'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_fornecedores_resumo'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'remessas_fornecedor_id_fkey'
+            columns: ['fornecedor_id']
+            isOneToOne: false
+            referencedRelation: 'vw_remessas_completa'
+            referencedColumns: ['fornecedor_id']
+          },
+        ]
       }
       vw_separacoes_agenda: {
         Row: {
