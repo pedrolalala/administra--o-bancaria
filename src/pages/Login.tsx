@@ -12,7 +12,7 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card'
-import { FileUp } from 'lucide-react'
+import logoUrl from '@/assets/logotipo-verticalv1preto-b4de9.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -39,12 +39,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <Card className="w-full max-w-md shadow-lg border-0">
         <CardHeader className="space-y-3 text-center pb-8">
-          <div className="mx-auto bg-primary/10 p-3 rounded-xl w-16 h-16 flex items-center justify-center text-primary mb-2">
-            <FileUp className="h-8 w-8" />
+          <div className="mx-auto mb-2 flex items-center justify-center">
+            <img src={logoUrl} alt="Lucenera Logo" className="h-24 object-contain" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-slate-800">
-            Lucenera
-          </CardTitle>
           <CardDescription>Faça login para acessar o sistema de Retorno Bancário.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { FileUp, LogOut, Menu } from 'lucide-react'
+import { LogOut, Menu } from 'lucide-react'
+import logoUrl from '@/assets/logotipo-verticalv1preto-b4de9.png'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -23,10 +24,7 @@ export default function Layout() {
       <header className="h-16 border-b bg-white flex items-center px-6 sticky top-0 z-10 shadow-sm relative">
         <div className="flex items-center gap-3 md:w-auto w-full justify-between md:justify-start">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 p-2 rounded-lg text-primary">
-              <FileUp className="h-6 w-6" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-800">Lucenera</h1>
+            <img src={logoUrl} alt="Lucenera Logo" className="h-10 object-contain" />
           </div>
           <div className="md:hidden">
             <Sheet>
