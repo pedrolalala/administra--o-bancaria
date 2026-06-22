@@ -163,11 +163,6 @@ export default function RetornoBoletos() {
     <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <img
-            src="https://img.usecurling.com/i?q=cs-logo&color=red"
-            alt="Logo"
-            className="h-8 w-8 object-contain"
-          />
           <h1 className="text-lg font-semibold text-slate-800">Retorno de Boletos</h1>
         </div>
         <div className="flex gap-2">
