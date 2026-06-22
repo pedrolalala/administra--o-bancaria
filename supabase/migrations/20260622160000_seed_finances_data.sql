@@ -30,15 +30,21 @@ BEGIN
   END IF;
 
   -- Ensure empresas exist for the required views
-  empresa_islight := gen_random_uuid();
-  INSERT INTO public.empresas (id, nome, razao_social)
-  VALUES (empresa_islight, 'ISLIGHT', 'ISLIGHT LTDA')
-  ON CONFLICT DO NOTHING;
+  SELECT id INTO empresa_islight FROM public.empresas WHERE nome = 'ISLIGHT' LIMIT 1;
+  IF empresa_islight IS NULL THEN
+    empresa_islight := gen_random_uuid();
+    INSERT INTO public.empresas (id, codigo, nome, razao_social)
+    VALUES (empresa_islight, 1, 'ISLIGHT', 'ISLIGHT LTDA')
+    ON CONFLICT DO NOTHING;
+  END IF;
 
-  empresa_lucenera := gen_random_uuid();
-  INSERT INTO public.empresas (id, nome, razao_social)
-  VALUES (empresa_lucenera, 'LUCENERA', 'LUCENERA LTDA')
-  ON CONFLICT DO NOTHING;
+  SELECT id INTO empresa_lucenera FROM public.empresas WHERE nome = 'LUCENERA' LIMIT 1;
+  IF empresa_lucenera IS NULL THEN
+    empresa_lucenera := gen_random_uuid();
+    INSERT INTO public.empresas (id, codigo, nome, razao_social)
+    VALUES (empresa_lucenera, 4, 'LUCENERA', 'LUCENERA LTDA')
+    ON CONFLICT DO NOTHING;
+  END IF;
 
   -- Insert mock boletos matching the User Story for Retorno de Boletos and Consultar Duplicatas
   INSERT INTO public.boletos (nosso_numero, numero_documento, nome_pagador, valor, vencimento, status, empresa_id)

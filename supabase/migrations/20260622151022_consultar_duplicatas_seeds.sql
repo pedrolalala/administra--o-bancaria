@@ -15,16 +15,16 @@ BEGIN
 
   -- Empresas
   IF NOT EXISTS (SELECT 1 FROM empresas WHERE nome = 'ISLIGHT') THEN
-    INSERT INTO empresas (id, nome, cnpj, cidade, estado, ativo) VALUES (emp_islight, 'ISLIGHT', '00000000000100', 'RIBEIRAO PRETO', 'SP', true);
+    INSERT INTO empresas (id, codigo, nome, cnpj, cidade, estado, ativo) VALUES (emp_islight, 1, 'ISLIGHT', '00000000000100', 'RIBEIRAO PRETO', 'SP', true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM empresas WHERE nome = 'SLIDE') THEN
-    INSERT INTO empresas (id, nome, cnpj, cidade, estado, ativo) VALUES (emp_slide, 'SLIDE', '00000000000200', 'RIBEIRAO PRETO', 'SP', true);
+    INSERT INTO empresas (id, codigo, nome, cnpj, cidade, estado, ativo) VALUES (emp_slide, 2, 'SLIDE', '00000000000200', 'RIBEIRAO PRETO', 'SP', true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM empresas WHERE nome = 'FOC') THEN
-    INSERT INTO empresas (id, nome, cnpj, cidade, estado, ativo) VALUES (emp_foc, 'FOC', '00000000000300', 'RIBEIRAO PRETO', 'SP', true);
+    INSERT INTO empresas (id, codigo, nome, cnpj, cidade, estado, ativo) VALUES (emp_foc, 3, 'FOC', '00000000000300', 'RIBEIRAO PRETO', 'SP', true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM empresas WHERE nome = 'LUCENERA') THEN
-    INSERT INTO empresas (id, nome, cnpj, cidade, estado, ativo) VALUES (emp_lucenera, 'LUCENERA', '00000000000400', 'RIBEIRAO PRETO', 'SP', true);
+    INSERT INTO empresas (id, codigo, nome, cnpj, cidade, estado, ativo) VALUES (emp_lucenera, 4, 'LUCENERA', '00000000000400', 'RIBEIRAO PRETO', 'SP', true);
   END IF;
 
   -- Boletos for Retorno
