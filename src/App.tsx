@@ -4,6 +4,9 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import Index from './pages/Index'
+import BoletosPage from './pages/Boletos'
+import RemessaPage from './pages/Remessa'
+import NotasFiscaisPage from './pages/NotasFiscais'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import Layout from './components/Layout'
@@ -28,6 +31,9 @@ const AppRoutes = () => {
         }
       >
         <Route path="/" element={<Index />} />
+        <Route path="/boletos" element={<BoletosPage />} />
+        <Route path="/remessa" element={<RemessaPage />} />
+        <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

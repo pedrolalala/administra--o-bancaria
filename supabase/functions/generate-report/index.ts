@@ -182,11 +182,11 @@ Deno.serve(async (req: Request) => {
       let page = pdfDoc.addPage()
       const { width, height } = page.getSize()
 
-      let logoBottomY = height - 20
+      let logoBottomY = height - 15
       let headerTextX = 40
       const maxLogoWidth = 140
-      const maxLogoHeight = 45 // reduced size for compact layout
-      let textY = height - 20
+      const maxLogoHeight = 40 // compact logo
+      let textY = height - 15
 
       if (logoBase64) {
         try {
@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
           const imgHeight = image.height * scale
 
           const logoX = 40
-          const logoY = height - 20 - imgHeight // tighter top margin
+          const logoY = height - 15 - imgHeight // tighter top margin
 
           page.drawImage(image, {
             x: logoX,
@@ -214,7 +214,7 @@ Deno.serve(async (req: Request) => {
           })
 
           logoBottomY = logoY
-          textY = logoBottomY - 5 // text immediately below the logo
+          textY = logoBottomY - 5 // minimize vertical space between logo and company text
         } catch (e) {
           console.error('Error embedding logo:', e)
         }
@@ -236,9 +236,12 @@ Deno.serve(async (req: Request) => {
       const companyTextBottomY = textY - 40
 
       // Right Side - Approval Section
-      page.drawText('1 de 1', { x: width - 60, y: height - 20, size: 9, font: boldFont })
+      // Moved approval section up to align with the top of the page rather than below the logo
+      // This prevents overlap and uses the white space on the top right
+      const rightSectionTopY = height - 15
+      page.drawText('1 de 1', { x: width - 60, y: rightSectionTopY, size: 9, font: boldFont })
 
-      const approvalY = textY - 5 // start lower so it doesn't overlap header and has enough space
+      const approvalY = rightSectionTopY - 25 // fixed position relative to page top
       page.drawLine({
         start: { x: width - 200, y: approvalY },
         end: { x: width - 40, y: approvalY },

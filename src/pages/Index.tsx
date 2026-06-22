@@ -140,10 +140,12 @@ export default function Index() {
     try {
       const recordsToInsert = data.records.map((r) => ({
         nosso_numero: r.nossoNumero,
+        numero_documento: r.nf || null,
         valor: r.valor,
         vencimento: formatToDateDb(r.dataVencimento),
         nome_pagador: r.pagador,
         status: 'Pendente',
+        tipo: 'Normal',
         empresa_id: selectedCompany.id,
       }))
 
