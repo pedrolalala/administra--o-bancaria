@@ -76,8 +76,8 @@ BEGIN
   -- Create dummy project
   IF NOT EXISTS (SELECT 1 FROM public.projetos WHERE nome = 'Projeto Teste MANOELLA') THEN
     v_projeto_id := gen_random_uuid();
-    INSERT INTO public.projetos (id, nome, empresa_id)
-    VALUES (v_projeto_id, 'Projeto Teste MANOELLA', v_empresa_id);
+    INSERT INTO public.projetos (id, codigo, nome, empresa_id)
+    VALUES (v_projeto_id, 'PRJ-TESTE', 'Projeto Teste MANOELLA', v_empresa_id);
   ELSE
     SELECT id INTO v_projeto_id FROM public.projetos WHERE nome = 'Projeto Teste MANOELLA' LIMIT 1;
   END IF;
