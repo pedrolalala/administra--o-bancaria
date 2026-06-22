@@ -34,7 +34,7 @@ BEGIN
   IF empresa_islight IS NULL THEN
     empresa_islight := gen_random_uuid();
     INSERT INTO public.empresas (id, codigo, nome, razao_social)
-    VALUES (empresa_islight, 1, 'ISLIGHT', 'ISLIGHT LTDA')
+    VALUES (empresa_islight, (SELECT COALESCE(MAX(codigo), 0) + 1 FROM empresas), 'ISLIGHT', 'ISLIGHT LTDA')
     ON CONFLICT DO NOTHING;
   END IF;
 
@@ -42,7 +42,7 @@ BEGIN
   IF empresa_lucenera IS NULL THEN
     empresa_lucenera := gen_random_uuid();
     INSERT INTO public.empresas (id, codigo, nome, razao_social)
-    VALUES (empresa_lucenera, 4, 'LUCENERA', 'LUCENERA LTDA')
+    VALUES (empresa_lucenera, (SELECT COALESCE(MAX(codigo), 0) + 1 FROM empresas), 'LUCENERA', 'LUCENERA LTDA')
     ON CONFLICT DO NOTHING;
   END IF;
 
