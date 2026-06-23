@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   Table,
@@ -89,6 +89,24 @@ export default function RetornoBoletos() {
 
   const [records, setRecords] = useState(initialRecords)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files)
+      setSelectedFiles(files)
+      setCaminho(files.map((f) => f.name).join('; '))
+      toast({
+        title: 'Arquivo(s) selecionado(s)',
+        description: `${files.length} arquivo(s) pronto(s) para processamento.`,
+      })
+    }
+  }
+
+  const handleLocalizarClick = () => {
+    fileInputRef.current?.click()
+  }
 
   const toggleSelect = (id: string) => {
     setRecords(records.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)))
@@ -176,10 +194,19 @@ export default function RetornoBoletos() {
             <Save className="h-4 w-4" />
             <span className="text-[10px]">Salvar</span>
           </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".RET,.ret"
+            multiple
+            onChange={handleFileChange}
+          />
           <Button
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleLocalizarClick}
           >
             <Search className="h-4 w-4" />
             <span className="text-[10px]">Localizar</span>
@@ -230,7 +257,12 @@ export default function RetornoBoletos() {
                 onChange={(e) => setCaminho(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0 bg-white">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0 bg-white"
+              onClick={handleLocalizarClick}
+            >
               <span className="text-xs font-bold">...</span>
             </Button>
           </div>
