@@ -98,9 +98,9 @@ BEGIN
     VALUES (v_orcamento_id, v_empresa_id, v_projeto_id, 'aguardando_aprovacao', 2000.00, 0.00);
     
     -- Create items for RT calculation testing
-    INSERT INTO public.projeto_itens (projeto_id, descricao, quantidade, preco_unitario, subtotal, validado)
+    INSERT INTO public.projeto_itens (projeto_id, descricao, quantidade, preco_unitario, validado)
     VALUES 
-      (v_projeto_id, 'Luminária Pendente', 2, 500.00, 1000.00, true),
-      (v_projeto_id, 'Fita de LED', 10, 100.00, 1000.00, true);
+      (v_projeto_id, 'Luminária Pendente', 2, 500.00, true),
+      (v_projeto_id, 'Fita de LED', 10, 100.00, true);
   END IF;
 END $$;
