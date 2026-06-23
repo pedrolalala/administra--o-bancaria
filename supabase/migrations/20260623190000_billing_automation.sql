@@ -72,7 +72,13 @@ DECLARE
   v_orcamento_id uuid;
 BEGIN
   -- Get Company
-  SELECT id INTO v_empresa_id FROM public.empresas WHERE cnpj = '12345678000199' LIMIT 1;
+  IF NOT EXISTS (SELECT 1 FROM public.empresas WHERE cnpj = '12345678000199') THEN
+    v_empresa_id := gen_random_uuid();
+    INSERT INTO public.empresas (id, codigo, nome, razao_social, cnpj, cidade, estado)
+    VALUES (v_empresa_id, 9999, 'Empresa Teste Billing', 'Empresa Teste Billing LTDA', '12345678000199', 'São Paulo', 'SP');
+  ELSE
+    SELECT id INTO v_empresa_id FROM public.empresas WHERE cnpj = '12345678000199' LIMIT 1;
+  END IF;
 
   -- Create dummy project
   IF NOT EXISTS (SELECT 1 FROM public.projetos WHERE nome = 'Projeto Billing Automation') THEN
