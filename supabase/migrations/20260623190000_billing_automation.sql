@@ -77,8 +77,8 @@ BEGIN
   -- Create dummy project
   IF NOT EXISTS (SELECT 1 FROM public.projetos WHERE nome = 'Projeto Billing Automation') THEN
     v_projeto_id := gen_random_uuid();
-    INSERT INTO public.projetos (id, codigo, nome, empresa_id)
-    VALUES (v_projeto_id, 'PRJ-BILL', 'Projeto Billing Automation', v_empresa_id);
+    INSERT INTO public.projetos (id, codigo, nome, empresa_id, status)
+    VALUES (v_projeto_id, 'PRJ-BILL', 'Projeto Billing Automation', v_empresa_id, 'Ajustes finais');
     
     -- Create dummy parcels
     INSERT INTO public.projeto_parcelas (projeto_id, numero_parcela, valor, data_vencimento, status)
