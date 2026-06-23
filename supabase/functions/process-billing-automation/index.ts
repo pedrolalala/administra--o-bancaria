@@ -97,8 +97,15 @@ Deno.serve(async (req: Request) => {
     if (orcamento.arquiteto_id && itens) {
       const rtItens = itens.filter((i) => {
         const desc = (i.descricao || '').toLowerCase()
-        if (desc.includes('fita') || desc.includes('fonte') || desc.includes('perfil')) return false
-        if (desc.includes('luminária') || desc.includes('decorativa')) return true
+        if (
+          desc.includes('fita') ||
+          desc.includes('fonte') ||
+          desc.includes('perfil') ||
+          desc.includes('infraestrutura')
+        )
+          return false
+        if (desc.includes('luminária') || desc.includes('decorativa') || desc.includes('peça'))
+          return true
         return false
       })
       rtTotal = rtItens.reduce((acc, i) => acc + (Number(i.subtotal) || 0) * 0.1, 0) // 10% mock
@@ -113,6 +120,14 @@ Deno.serve(async (req: Request) => {
           nf: publicUrl.publicUrl,
           order: orcamento.numero,
         },
+      },
+    })
+
+    await supabaseClient.functions.invoke('enviar-confirmacao-email', {
+      body: {
+        to: 'cliente@exemplo.com',
+        subject: `Documentos do Pedido ${orcamento.numero}`,
+        body: `Seu pedido foi faturado com sucesso. Link para NF: ${publicUrl.publicUrl}`,
       },
     })
 

@@ -60,7 +60,15 @@ export default function RemessaPage() {
       .eq('status', 'Pendente')
       .order('vencimento', { ascending: true })
 
-    if (data) setBoletos(data)
+    if (data) {
+      setBoletos(data)
+      if (data.length > 0) {
+        toast({
+          title: 'Boletos Pendentes',
+          description: `${data.length} Boleto(s) gerado(s), mas não registrado(s) no banco.`,
+        })
+      }
+    }
     setLoading(false)
   }
 

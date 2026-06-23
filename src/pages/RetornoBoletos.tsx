@@ -121,12 +121,57 @@ export default function RetornoBoletos() {
             status: r.ocorrencia === '06' ? '06-Liquidação Normal' : `${r.ocorrencia}-Outros`,
             selected: true,
           }))
+
+          setIsProcessing(true)
+          let successCount = 0
+
+          for (const rec of parsedRecords) {
+            let boletoId = null
+            let parcelaId = null
+
+            if (rec.pago > 0) {
+              const { data } = await supabase
+                .from('boletos')
+                .update({ status: 'Pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
+                .eq('nosso_numero', rec.nosso)
+                .select('id, parcela_id')
+                .single()
+
+              if (data) {
+                boletoId = data.id
+                parcelaId = data.parcela_id
+                successCount++
+              }
+            } else {
+              const { data } = await supabase
+                .from('boletos')
+                .update({ status: 'Cancelado' })
+                .eq('nosso_numero', rec.nosso)
+                .select('id, parcela_id')
+                .single()
+
+              if (data) {
+                boletoId = data.id
+                parcelaId = data.parcela_id
+                successCount++
+              }
+            }
+
+            if (parcelaId && rec.pago > 0) {
+              await supabase
+                .from('projeto_parcelas')
+                .update({ status: 'pago', valor_pago: rec.pago, data_pagamento: rec.pagto })
+                .eq('id', parcelaId)
+            }
+          }
+
           setRecords(parsedRecords)
 
           toast({
-            title: 'Retorno Lido',
-            description: `${parsedRecords.length} registros processados.`,
+            title: 'Retorno Processado',
+            description: `${parsedRecords.length} lidos. ${successCount} títulos sincronizados automaticamente.`,
           })
+          setIsProcessing(false)
         } else {
           toast({
             variant: 'destructive',
@@ -156,73 +201,6 @@ export default function RetornoBoletos() {
     return `${day}/${month}/${year}`
   }
 
-  const handleSalvar = async () => {
-    setIsProcessing(true)
-    const selected = records.filter((r) => r.selected)
-
-    if (selected.length === 0) {
-      toast({
-        title: 'Atenção',
-        description: 'Nenhum registro selecionado.',
-        variant: 'destructive',
-      })
-      setIsProcessing(false)
-      return
-    }
-
-    try {
-      for (const rec of selected) {
-        let boletoId = null
-        let parcelaId = null
-
-        if (rec.pago > 0) {
-          const { data, error } = await supabase
-            .from('boletos')
-            .update({ status: 'Pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
-            .eq('numero_documento', rec.doc)
-            .select('id, parcela_id')
-            .single()
-
-          if (error) console.error(error)
-          if (data) {
-            boletoId = data.id
-            parcelaId = data.parcela_id
-          }
-        } else {
-          const { data, error } = await supabase
-            .from('boletos')
-            .update({ status: 'Cancelado' })
-            .eq('numero_documento', rec.doc)
-            .select('id, parcela_id')
-            .single()
-
-          if (error) console.error(error)
-          if (data) {
-            boletoId = data.id
-            parcelaId = data.parcela_id
-          }
-        }
-
-        if (parcelaId && rec.pago > 0) {
-          const { error: pErr } = await supabase
-            .from('projeto_parcelas')
-            .update({ status: 'pago', valor_pago: rec.pago, data_pagamento: rec.pagto })
-            .eq('id', parcelaId)
-          if (pErr) console.error('Erro ao atualizar parcela:', pErr)
-        }
-      }
-
-      toast({
-        title: 'Retorno Salvo',
-        description: `${selected.length} títulos processados e sincronizados com sucesso.`,
-      })
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.message })
-    }
-
-    setIsProcessing(false)
-  }
-
   const totais = useMemo(() => {
     return records.reduce(
       (acc, curr) => {
@@ -243,16 +221,6 @@ export default function RetornoBoletos() {
           <h1 className="text-lg font-semibold text-slate-800">Retorno de Boletos</h1>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
-            onClick={handleSalvar}
-            disabled={isProcessing}
-          >
-            <Save className="h-4 w-4" />
-            <span className="text-[10px]">Salvar</span>
-          </Button>
           <input
             type="file"
             ref={fileInputRef}
