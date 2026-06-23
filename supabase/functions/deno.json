@@ -12,7 +12,7 @@
     "enviar-confirmacao-email": 2,
     "parse-budget-pdf": 6,
     "process-budget-pdf": 4,
-    "process-billing-automation": 3,
-    "process-remittance": 1
+    "process-billing-automation": 4,
+    "process-remittance": 2
   }
 }
