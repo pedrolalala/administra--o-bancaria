@@ -241,6 +241,8 @@ export default function BoletosPage() {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="Pendente">Pendente</SelectItem>
+              <SelectItem value="pendente_registro">Pendente Registro</SelectItem>
+              <SelectItem value="Remessa Enviada">Remessa Enviada</SelectItem>
               <SelectItem value="Registrado">Registrado</SelectItem>
               <SelectItem value="Pago">Pago</SelectItem>
               <SelectItem value="Cancelado">Cancelado</SelectItem>
@@ -382,14 +384,16 @@ export default function BoletosPage() {
                       <Badge
                         variant="outline"
                         className={
-                          b.status === 'Pago'
+                          b.status === 'Pago' || b.status === 'pago'
                             ? 'bg-emerald-50 text-emerald-700'
-                            : b.status === 'Registrado'
+                            : b.status === 'Registrado' || b.status === 'Remessa Enviada'
                               ? 'bg-sky-50 text-sky-700'
-                              : 'bg-amber-50 text-amber-700'
+                              : b.status === 'pendente_registro'
+                                ? 'bg-orange-50 text-orange-700'
+                                : 'bg-amber-50 text-amber-700'
                         }
                       >
-                        {b.status}
+                        {b.status === 'pendente_registro' ? 'Pendente Registro' : b.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
@@ -475,6 +479,8 @@ export default function BoletosPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Pendente">Pendente</SelectItem>
+                  <SelectItem value="pendente_registro">Pendente Registro</SelectItem>
+                  <SelectItem value="Remessa Enviada">Remessa Enviada</SelectItem>
                   <SelectItem value="Registrado">Registrado</SelectItem>
                   <SelectItem value="Pago">Pago</SelectItem>
                   <SelectItem value="Cancelado">Cancelado</SelectItem>

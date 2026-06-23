@@ -29,6 +29,7 @@ export default function NotasFiscaisPage() {
   const [notas, setNotas] = useState<any[]>([])
   const [boletosNF, setBoletosNF] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // Form Registration
   const [formData, setFormData] = useState({
@@ -107,6 +108,47 @@ export default function NotasFiscaisPage() {
     }
   }
 
+  const handleSimulateAutomation = async () => {
+    setIsProcessing(true)
+    try {
+      const { data: orcamento } = await supabase
+        .from('orcamentos')
+        .select('id')
+        .eq('status', 'aguardando_aprovacao')
+        .limit(1)
+        .single()
+
+      if (!orcamento) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: 'Nenhum orçamento pendente para testar.',
+        })
+        setIsProcessing(false)
+        return
+      }
+
+      await supabase.from('orcamentos').update({ status: 'Aprovado' }).eq('id', orcamento.id)
+
+      const { data, error } = await supabase.functions.invoke('process-billing-automation', {
+        body: { orcamento_id: orcamento.id },
+      })
+
+      if (error) throw error
+      if (data.error) throw new Error(data.error)
+
+      toast({
+        title: 'Faturamento Automatizado Concluído',
+        description: `NF Gerada, ${data.boletos_gerados} boletos criados na fila de remessa. RT Calculado: R$ ${data.rt_calculado}.`,
+      })
+      fetchNotas()
+      fetchBoletosNF()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro na Automação', description: err.message })
+    }
+    setIsProcessing(false)
+  }
+
   const openLinkModal = (nfId: string) => {
     setSelectedNFId(nfId)
     setSelectedBoletoId('')
@@ -132,9 +174,20 @@ export default function NotasFiscaisPage() {
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Notas Fiscais</h2>
-        <p className="text-muted-foreground">Registre notas e vincule com os boletos do sistema.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Notas Fiscais</h2>
+          <p className="text-muted-foreground">
+            Registre notas e vincule com os boletos do sistema.
+          </p>
+        </div>
+        <Button
+          onClick={handleSimulateAutomation}
+          disabled={isProcessing}
+          className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+        >
+          Simular Automação (Aprovar Orçamento)
+        </Button>
       </div>
 
       <div className="bg-white p-6 rounded-xl border shadow-sm">

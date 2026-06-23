@@ -132,7 +132,7 @@ export default function RetornoBoletos() {
             if (rec.pago > 0) {
               const { data } = await supabase
                 .from('boletos')
-                .update({ status: 'Pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
+                .update({ status: 'pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
                 .eq('nosso_numero', rec.nosso)
                 .select('id, parcela_id')
                 .single()
@@ -160,7 +160,7 @@ export default function RetornoBoletos() {
             if (parcelaId && rec.pago > 0) {
               await supabase
                 .from('projeto_parcelas')
-                .update({ status: 'pago', valor_pago: rec.pago, data_pagamento: rec.pagto })
+                .update({ status: 'paga', valor_pago: rec.pago, data_pagamento: rec.pagto })
                 .eq('id', parcelaId)
             }
           }

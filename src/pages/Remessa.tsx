@@ -57,7 +57,7 @@ export default function RemessaPage() {
     const { data } = await supabase
       .from('boletos')
       .select(`*, empresas(nome)`)
-      .eq('status', 'Pendente')
+      .in('status', ['Pendente', 'pendente_registro'])
       .order('vencimento', { ascending: true })
 
     if (data) {

@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
     const { data: boletos, error } = await supabaseClient
       .from('boletos')
       .select('*')
-      .eq('status', 'Pendente')
+      .in('status', ['Pendente', 'pendente_registro'])
 
     if (error) throw error
 
