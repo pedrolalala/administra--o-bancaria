@@ -92,15 +92,51 @@ export default function RetornoBoletos() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files)
       setSelectedFiles(files)
       setCaminho(files.map((f) => f.name).join('; '))
-      toast({
-        title: 'Arquivo(s) selecionado(s)',
-        description: `${files.length} arquivo(s) pronto(s) para processamento.`,
-      })
+
+      try {
+        const file = files[0]
+        const text = await file.text()
+        const { parseCnab400 } = await import('@/lib/cnab-parser')
+        const cnabData = parseCnab400(text)
+
+        if (cnabData.summary.fileType === 'RETORNO') {
+          const parsedRecords = cnabData.records.map((r, i) => ({
+            id: r.id || `ret-${i}`,
+            nosso: r.nossoNumero,
+            doc: r.nf || r.nossoNumero,
+            valor: r.valor,
+            juros: 0,
+            desconto: 0,
+            pago: r.valorRecebido || r.valor,
+            venc: r.dataVencimento
+              ? r.dataVencimento.split('/').reverse().join('-')
+              : new Date().toISOString().split('T')[0],
+            pagto: new Date().toISOString().split('T')[0],
+            sacado: r.pagador,
+            status: r.ocorrencia === '06' ? '06-Liquidação Normal' : `${r.ocorrencia}-Outros`,
+            selected: true,
+          }))
+          setRecords(parsedRecords)
+
+          toast({
+            title: 'Retorno Lido',
+            description: `${parsedRecords.length} registros processados.`,
+          })
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Atenção',
+            description: 'O arquivo não é de RETORNO.',
+          })
+        }
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: 'Erro de Leitura', description: err.message })
+      }
     }
   }
 
@@ -136,20 +172,43 @@ export default function RetornoBoletos() {
 
     try {
       for (const rec of selected) {
+        let boletoId = null
+        let parcelaId = null
+
         if (rec.pago > 0) {
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('boletos')
             .update({ status: 'Pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
             .eq('numero_documento', rec.doc)
+            .select('id, parcela_id')
+            .single()
 
           if (error) console.error(error)
+          if (data) {
+            boletoId = data.id
+            parcelaId = data.parcela_id
+          }
         } else {
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from('boletos')
             .update({ status: 'Cancelado' })
             .eq('numero_documento', rec.doc)
+            .select('id, parcela_id')
+            .single()
 
           if (error) console.error(error)
+          if (data) {
+            boletoId = data.id
+            parcelaId = data.parcela_id
+          }
+        }
+
+        if (parcelaId && rec.pago > 0) {
+          const { error: pErr } = await supabase
+            .from('projeto_parcelas')
+            .update({ status: 'pago', valor_pago: rec.pago, data_pagamento: rec.pagto })
+            .eq('id', parcelaId)
+          if (pErr) console.error('Erro ao atualizar parcela:', pErr)
         }
       }
 

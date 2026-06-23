@@ -92,7 +92,25 @@ export default function RemessaPage() {
     setShowPreview(true)
   }
 
-  const handleDownload = () => {
+  const handleProcessarBatch = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('process-remittance')
+      if (error) throw error
+
+      toast({
+        title: 'Remessa em Lote Processada',
+        description: `${data?.processed || 0} boletos consolidados e marcados como 'Remessa Enviada'.`,
+      })
+      fetchBoletos()
+      setSelectedIds([])
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+    }
+    setLoading(false)
+  }
+
+  const handleDownload = async () => {
     const blob = new Blob([previewContent], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -103,8 +121,17 @@ export default function RemessaPage() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
-    toast({ title: 'Download Concluído', description: 'Arquivo de remessa gerado com sucesso.' })
+    const selectedBoletos = filteredBoletos.filter((b) => selectedIds.includes(b.id))
+    const ids = selectedBoletos.map((b) => b.id)
+    await supabase.from('boletos').update({ status: 'Remessa Enviada' }).in('id', ids)
+
+    toast({
+      title: 'Download Concluído',
+      description: 'Arquivo de remessa gerado com sucesso e status atualizado.',
+    })
     setShowPreview(false)
+    fetchBoletos()
+    setSelectedIds([])
   }
 
   return (
@@ -141,14 +168,17 @@ export default function RemessaPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4 justify-end">
+          <Button variant="outline" onClick={handleProcessarBatch} disabled={loading}>
+            Processar Fila Batch (17:00)
+          </Button>
           <Button variant="outline" onClick={toggleSelectAll}>
             {selectedIds.length === filteredBoletos.length && filteredBoletos.length > 0
               ? 'Desmarcar Todos'
               : 'Selecionar Todos'}
           </Button>
           <Button onClick={handleGerar} disabled={selectedIds.length === 0} className="gap-2">
-            <FileText className="h-4 w-4" /> Gerar Arquivo
+            <FileText className="h-4 w-4" /> Gerar Selecionados
           </Button>
         </div>
       </div>
