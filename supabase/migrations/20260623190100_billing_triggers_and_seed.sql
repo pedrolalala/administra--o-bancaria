@@ -60,20 +60,11 @@ CREATE TRIGGER tr_check_orcamento_approval
   FOR EACH ROW
   EXECUTE FUNCTION public.check_orcamento_approval();
 
-CREATE EXTENSION IF NOT EXISTS net;
-
+-- pg_net is not available in the current Postgres environment.
+-- In a full Supabase project, this function would use net.http_post or Supabase Database Webhooks.
 CREATE OR REPLACE FUNCTION public.invoke_billing_automation()
 RETURNS trigger AS $$
 BEGIN
-  IF NEW.status = 'Aprovado' AND OLD.status IS DISTINCT FROM 'Aprovado' THEN
-    PERFORM net.http_post(
-      url := 'https://vcvcwzmbiftcawncibke.supabase.co/functions/v1/process-billing-automation',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json'
-      ),
-      body := jsonb_build_object('orcamento_id', NEW.id)
-    );
-  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
