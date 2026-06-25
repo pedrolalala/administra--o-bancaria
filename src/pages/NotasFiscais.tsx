@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase/client'
 import {
   Table,
@@ -11,6 +12,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -26,10 +34,12 @@ import { Badge } from '@/components/ui/badge'
 
 export default function NotasFiscaisPage() {
   const { toast } = useToast()
+  const [searchParams] = useSearchParams()
+  const orcamentoId = searchParams.get('orcamento_id')
   const [notas, setNotas] = useState<any[]>([])
   const [boletosNF, setBoletosNF] = useState<any[]>([])
+  const [orcamentoContext, setOrcamentoContext] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
 
   // Form Registration
   const [formData, setFormData] = useState({
@@ -39,6 +49,8 @@ export default function NotasFiscaisPage() {
     valor: '',
     fornecedor: '',
     arquiteto: '',
+    orcamento_id: '',
+    boleto_id: '',
     arquivo: null as File | null,
   })
 
@@ -48,35 +60,111 @@ export default function NotasFiscaisPage() {
   const [selectedBoletoId, setSelectedBoletoId] = useState('')
 
   useEffect(() => {
+    fetchOrcamentoContext()
     fetchNotas()
     fetchBoletosNF()
-  }, [])
+  }, [orcamentoId])
+
+  const fetchOrcamentoContext = async () => {
+    if (!orcamentoId) {
+      setOrcamentoContext(null)
+      return
+    }
+
+    const { data } = await supabase
+      .from('orcamentos')
+      .select(`
+        id,
+        numero,
+        valor_total,
+        forma_pagamento,
+        condicoes_pagamento,
+        empresa:empresas(nome),
+        cliente:contatos!orcamentos_cliente_id_fkey(nome),
+        projeto:projetos(nome, codigo)
+      `)
+      .eq('id', orcamentoId)
+      .single()
+
+    if (data) {
+      setOrcamentoContext(data)
+      setFormData((current) => ({
+        ...current,
+        orcamento_id: current.orcamento_id || orcamentoId,
+        valor: current.valor || String(data.valor_total || ''),
+        fornecedor: current.fornecedor || data.empresa?.nome || '',
+      }))
+    }
+  }
 
   const fetchNotas = async () => {
     setLoading(true)
-    const { data } = await supabase
+    let query: any = supabase
       .from('notas_fiscais')
-      .select(`*, boletos(nosso_numero, nome_pagador, valor)`)
+      .select(`
+        *,
+        boletos(nosso_numero, nome_pagador, valor),
+        orcamentos(
+          numero,
+          cliente:contatos!orcamentos_cliente_id_fkey(nome),
+          projeto:projetos(nome, codigo)
+        )
+      `)
       .order('created_at', { ascending: false })
+
+    if (orcamentoId) {
+      query = query.eq('orcamento_id', orcamentoId)
+    }
+
+    const { data } = await query
 
     if (data) setNotas(data)
     setLoading(false)
   }
 
   const fetchBoletosNF = async () => {
-    const { data } = await supabase
+    let query: any = supabase
       .from('boletos')
-      .select('id, nosso_numero, numero_documento, nome_pagador, valor, vencimento')
+      .select('id, nosso_numero, numero_documento, nome_pagador, valor, vencimento, orcamento_id, status')
       .eq('tipo', 'Nota Fiscal')
       .order('vencimento', { ascending: false })
 
+    if (orcamentoId) {
+      query = query.eq('orcamento_id', orcamentoId)
+    }
+
+    const { data } = await query
+
     if (data) setBoletosNF(data)
+  }
+
+  const uploadNotaFiscal = async (file: File | null) => {
+    if (!file) return null
+
+    const safeName = file.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '-')
+    const prefix = formData.orcamento_id || orcamentoId || 'sem-orcamento'
+    const filePath = `notas-fiscais/${prefix}/${Date.now()}-${safeName}`
+
+    const { error } = await supabase.storage
+      .from('notas_fiscais')
+      .upload(filePath, file, {
+        contentType: file.type || 'application/pdf',
+        upsert: false,
+      })
+
+    if (error) throw error
+
+    const { data } = supabase.storage.from('notas_fiscais').getPublicUrl(filePath)
+    return data.publicUrl
   }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      // Simulate file upload logic if a file was selected...
+      const arquivoUrl = await uploadNotaFiscal(formData.arquivo)
       const payload = {
         numero_nf: formData.numero_nf,
         serie: formData.serie,
@@ -84,10 +172,10 @@ export default function NotasFiscaisPage() {
         valor: formData.valor ? parseFloat(formData.valor) : null,
         fornecedor: formData.fornecedor,
         arquiteto: formData.arquiteto,
-        arquivo_url: formData.arquivo
-          ? `https://simulated-bucket.com/${formData.arquivo.name}`
-          : null,
-      }
+        orcamento_id: formData.orcamento_id || orcamentoId || null,
+        boleto_id: formData.boleto_id || null,
+        arquivo_url: arquivoUrl,
+      } as any
 
       const { error } = await supabase.from('notas_fiscais').insert([payload])
       if (error) throw error
@@ -100,53 +188,14 @@ export default function NotasFiscaisPage() {
         valor: '',
         fornecedor: '',
         arquiteto: '',
+        orcamento_id: orcamentoId || '',
+        boleto_id: '',
         arquivo: null,
       })
       fetchNotas()
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
     }
-  }
-
-  const handleSimulateAutomation = async () => {
-    setIsProcessing(true)
-    try {
-      const { data: orcamento } = await supabase
-        .from('orcamentos')
-        .select('id')
-        .eq('status', 'aguardando_aprovacao')
-        .limit(1)
-        .single()
-
-      if (!orcamento) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro',
-          description: 'Nenhum orçamento pendente para testar.',
-        })
-        setIsProcessing(false)
-        return
-      }
-
-      await supabase.from('orcamentos').update({ status: 'Aprovado' }).eq('id', orcamento.id)
-
-      const { data, error } = await supabase.functions.invoke('process-billing-automation', {
-        body: { orcamento_id: orcamento.id },
-      })
-
-      if (error) throw error
-      if (data.error) throw new Error(data.error)
-
-      toast({
-        title: 'Faturamento Automatizado Concluído',
-        description: `NF Gerada, ${data.boletos_gerados} boletos criados na fila de remessa. RT Calculado: R$ ${data.rt_calculado}.`,
-      })
-      fetchNotas()
-      fetchBoletosNF()
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro na Automação', description: err.message })
-    }
-    setIsProcessing(false)
   }
 
   const openLinkModal = (nfId: string) => {
@@ -172,6 +221,17 @@ export default function NotasFiscaisPage() {
     }
   }
 
+  const getOrcamentoFromNota = (nota: any) =>
+    Array.isArray(nota.orcamentos) ? nota.orcamentos[0] : nota.orcamentos
+
+  const formatCurrency = (value: number | string | null | undefined) =>
+    value
+      ? new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(Number(value))
+      : '-'
+
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -181,14 +241,43 @@ export default function NotasFiscaisPage() {
             Registre notas e vincule com os boletos do sistema.
           </p>
         </div>
-        <Button
-          onClick={handleSimulateAutomation}
-          disabled={isProcessing}
-          className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
-        >
-          Simular Automação (Aprovar Orçamento)
-        </Button>
       </div>
+
+      {orcamentoId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          NF filtrada pelo orçamento{' '}
+          <span className="font-mono font-semibold">
+            {orcamentoContext?.numero || getOrcamentoFromNota(notas[0])?.numero || orcamentoId}
+          </span>
+          . Se ainda não houver nota registrada, mantenha este estado como “NF
+          pendente” até emissão real/manual ou futura API.
+        </div>
+      )}
+
+      {orcamentoContext && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 rounded-xl border bg-white p-4 text-sm shadow-sm">
+          <div>
+            <p className="text-slate-500">Orçamento</p>
+            <p className="font-semibold">{orcamentoContext.numero || orcamentoContext.id}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Projeto</p>
+            <p className="font-semibold">
+              {orcamentoContext.projeto?.codigo
+                ? `${orcamentoContext.projeto.codigo} — ${orcamentoContext.projeto.nome}`
+                : orcamentoContext.projeto?.nome || '-'}
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-500">Cliente</p>
+            <p className="font-semibold">{orcamentoContext.cliente?.nome || '-'}</p>
+          </div>
+          <div>
+            <p className="text-slate-500">Valor</p>
+            <p className="font-semibold">{formatCurrency(orcamentoContext.valor_total)}</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white p-6 rounded-xl border shadow-sm">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -242,6 +331,30 @@ export default function NotasFiscaisPage() {
               onChange={(e) => setFormData({ ...formData, arquiteto: e.target.value })}
             />
           </div>
+          {orcamentoId && (
+            <div className="space-y-2">
+              <Label>Orçamento vinculado</Label>
+              <Input value={orcamentoId} disabled className="font-mono text-xs" />
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>Boleto vinculado</Label>
+            <Select
+              value={formData.boleto_id}
+              onValueChange={(v) => setFormData({ ...formData, boleto_id: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o boleto" />
+              </SelectTrigger>
+              <SelectContent>
+                {boletosNF.map((boleto) => (
+                  <SelectItem key={boleto.id} value={boleto.id}>
+                    {boleto.nosso_numero} — {formatCurrency(boleto.valor)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Arquivo PDF</Label>
             <div className="flex items-center gap-2">
@@ -266,6 +379,7 @@ export default function NotasFiscaisPage() {
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead>Nº NF / Série</TableHead>
+              <TableHead>Orçamento / Projeto</TableHead>
               <TableHead>Emissão</TableHead>
               <TableHead>Fornecedor</TableHead>
               <TableHead className="text-right">Valor</TableHead>
@@ -276,14 +390,16 @@ export default function NotasFiscaisPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : notas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  Nenhuma NF registrada.
+                <TableCell colSpan={7} className="text-center py-8">
+                  {orcamentoId
+                    ? 'NF pendente de emissão para este orçamento.'
+                    : 'Nenhuma NF registrada.'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -292,17 +408,18 @@ export default function NotasFiscaisPage() {
                   <TableCell className="font-medium">
                     {nf.numero_nf} {nf.serie ? `- ${nf.serie}` : ''}
                   </TableCell>
+                  <TableCell className="text-xs text-slate-600">
+                    <div className="flex flex-col">
+                      <span className="font-mono">{getOrcamentoFromNota(nf)?.numero || '-'}</span>
+                      <span>{getOrcamentoFromNota(nf)?.projeto?.nome || '-'}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-slate-500 text-sm">
                     {nf.data_emissao ? format(new Date(nf.data_emissao), 'dd/MM/yyyy') : '-'}
                   </TableCell>
                   <TableCell className="truncate max-w-[200px]">{nf.fornecedor || '-'}</TableCell>
                   <TableCell className="text-right font-mono font-medium">
-                    {nf.valor
-                      ? new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(nf.valor)
-                      : '-'}
+                    {formatCurrency(nf.valor)}
                   </TableCell>
                   <TableCell className="text-center">
                     {nf.boletos ? (
