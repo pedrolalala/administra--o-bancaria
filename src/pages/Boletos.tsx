@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase/client'
 import {
   Table,
@@ -33,9 +34,10 @@ import { format } from 'date-fns'
 
 export default function BoletosPage() {
   const { toast } = useToast()
+  const [searchParams] = useSearchParams()
+  const orcamentoId = searchParams.get('orcamento_id')
   const [boletos, setBoletos] = useState<any[]>([])
   const [empresas, setEmpresas] = useState<any[]>([])
-  const [projetos, setProjetos] = useState<any[]>([])
   const [parcelas, setParcelas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -62,37 +64,49 @@ export default function BoletosPage() {
     status: 'Pendente',
     tipo: 'Normal',
     empresa_id: '',
-    projeto_id: '',
     parcela_id: '',
+    orcamento_id: '',
   })
 
   useEffect(() => {
     fetchAuxData()
     fetchBoletos()
-  }, [])
+  }, [orcamentoId])
 
   const fetchAuxData = async () => {
-    const [empRes, projRes, parcRes] = await Promise.all([
+    const [empRes, parcRes] = await Promise.all([
       supabase.from('empresas').select('id, nome').order('nome'),
-      supabase.from('projetos').select('id, nome').order('nome'),
-      supabase.from('projeto_parcelas').select('id, projeto_id, numero_parcela, valor'),
+      supabase
+        .from('projeto_parcelas')
+        .select('id, orcamento_id, numero_parcela, valor')
+        .order('numero_parcela'),
     ])
     if (empRes.data) setEmpresas(empRes.data)
-    if (projRes.data) setProjetos(projRes.data)
     if (parcRes.data) setParcelas(parcRes.data)
   }
 
   const fetchBoletos = async () => {
     setLoading(true)
-    const { data } = await supabase
+    let query: any = supabase
       .from('boletos')
       .select(`
         *,
         empresas(nome),
-        projetos(nome),
-        projeto_parcelas(numero_parcela)
+        projeto_parcelas(numero_parcela),
+        orcamentos(
+          id,
+          numero,
+          cliente:contatos!orcamentos_cliente_id_fkey(id, nome),
+          projeto:projetos(id, nome, codigo)
+        )
       `)
       .order('vencimento', { ascending: false })
+
+    if (orcamentoId) {
+      query = query.eq('orcamento_id', orcamentoId)
+    }
+
+    const { data } = await query
 
     if (data) setBoletos(data)
     setLoading(false)
@@ -120,9 +134,9 @@ export default function BoletosPage() {
         status: formData.status,
         tipo: formData.tipo,
         empresa_id: formData.empresa_id || null,
-        projeto_id: formData.projeto_id || null,
         parcela_id: formData.parcela_id || null,
-      }
+        orcamento_id: formData.orcamento_id || orcamentoId || null,
+      } as any
 
       if (isEditing) {
         await supabase.from('boletos').update(payload).eq('id', formData.id)
@@ -149,8 +163,8 @@ export default function BoletosPage() {
       status: boleto.status || 'Pendente',
       tipo: boleto.tipo || 'Normal',
       empresa_id: boleto.empresa_id || '',
-      projeto_id: boleto.projeto_id || '',
       parcela_id: boleto.parcela_id || '',
+      orcamento_id: boleto.orcamento_id || '',
     })
     setIsEditing(true)
     setOpenModal(true)
@@ -167,8 +181,8 @@ export default function BoletosPage() {
       status: 'Pendente',
       tipo: 'Normal',
       empresa_id: '',
-      projeto_id: '',
       parcela_id: '',
+      orcamento_id: orcamentoId || '',
     })
     setIsEditing(false)
     setOpenModal(true)
@@ -179,7 +193,7 @@ export default function BoletosPage() {
       if (filterEmpresa !== 'all' && b.empresa_id !== filterEmpresa) return false
       if (filterStatus !== 'all' && b.status !== filterStatus) return false
       if (filterTipo !== 'all' && b.tipo !== filterTipo) return false
-      if (filterProjeto !== 'all' && b.projeto_id !== filterProjeto) return false
+      if (filterProjeto !== 'all' && getProjetoFromBoleto(b)?.id !== filterProjeto) return false
 
       if (filterDataInicio && (!b.vencimento || b.vencimento < filterDataInicio)) return false
       if (filterDataFim && (!b.vencimento || b.vencimento > filterDataFim)) return false
@@ -201,7 +215,32 @@ export default function BoletosPage() {
     filterValorMax,
   ])
 
-  const availableParcelas = parcelas.filter((p) => p.projeto_id === formData.projeto_id)
+  const projetos = useMemo(() => {
+    const map = new Map<string, any>()
+    boletos.forEach((boleto) => {
+      const projeto = getProjetoFromBoleto(boleto)
+      if (projeto?.id) map.set(projeto.id, projeto)
+    })
+    return Array.from(map.values()).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+  }, [boletos])
+
+  const availableParcelas = parcelas.filter(
+    (p) => formData.orcamento_id && p.orcamento_id === formData.orcamento_id,
+  )
+
+  function getOrcamentoFromBoleto(boleto: any) {
+    return Array.isArray(boleto.orcamentos) ? boleto.orcamentos[0] : boleto.orcamentos
+  }
+
+  function getProjetoFromBoleto(boleto: any) {
+    const orcamento = getOrcamentoFromBoleto(boleto)
+    return Array.isArray(orcamento?.projeto) ? orcamento.projeto[0] : orcamento?.projeto
+  }
+
+  function getClienteFromBoleto(boleto: any) {
+    const orcamento = getOrcamentoFromBoleto(boleto)
+    return Array.isArray(orcamento?.cliente) ? orcamento.cliente[0] : orcamento?.cliente
+  }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
@@ -214,6 +253,16 @@ export default function BoletosPage() {
           <Plus className="h-4 w-4" /> Novo Boleto
         </Button>
       </div>
+
+      {orcamentoId && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          Boletos filtrados pelo orçamento{' '}
+          <span className="font-mono font-semibold">
+            {getOrcamentoFromBoleto(boletos[0])?.numero || orcamentoId}
+          </span>
+          . Estes boletos ficam pendentes até validação/remessa bancária.
+        </div>
+      )}
 
       <div className="bg-white p-6 rounded-xl border shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="space-y-2">
@@ -351,13 +400,18 @@ export default function BoletosPage() {
                     <TableCell className="font-mono text-xs">{b.nosso_numero}</TableCell>
                     <TableCell className="text-xs">{b.numero_documento || '-'}</TableCell>
                     <TableCell className="font-medium truncate max-w-[150px]">
-                      {b.nome_pagador}
+                      <div className="flex flex-col">
+                        <span>{b.nome_pagador}</span>
+                        <span className="text-xs text-slate-400">
+                          Cliente: {getClienteFromBoleto(b)?.nome || '-'}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-slate-600 truncate max-w-[120px]">
                       {b.empresas?.nome || '-'}
                     </TableCell>
                     <TableCell className="text-slate-600 truncate max-w-[120px]">
-                      {b.projetos?.nome || '-'}
+                      {getProjetoFromBoleto(b)?.nome || '-'}
                     </TableCell>
                     <TableCell className="text-right text-sm">
                       {b.vencimento ? format(new Date(b.vencimento), 'dd/MM/yyyy') : '-'}
@@ -521,29 +575,19 @@ export default function BoletosPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Projeto</Label>
-              <Select
-                value={formData.projeto_id}
-                onValueChange={(v) => setFormData({ ...formData, projeto_id: v, parcela_id: '' })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projetos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Orçamento vinculado</Label>
+              <Input
+                value={formData.orcamento_id || 'Sem orçamento vinculado'}
+                disabled
+                className="font-mono text-xs"
+              />
             </div>
             <div className="space-y-2">
               <Label>Parcela</Label>
               <Select
                 value={formData.parcela_id}
                 onValueChange={(v) => setFormData({ ...formData, parcela_id: v })}
-                disabled={!formData.projeto_id}
+                disabled={!formData.orcamento_id}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
