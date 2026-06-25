@@ -180,9 +180,8 @@ export default function RemessaPage() {
         <div className="flex gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <p>
-            Fluxo manual: o responsável seleciona os títulos, gera a prévia,
-            baixa o arquivo .REM e envia ao banco. O status só muda para
-            “Remessa Enviada” após o download.
+            Fluxo manual: o responsável seleciona os títulos, gera a prévia, baixa o arquivo .REM e
+            envia ao banco. O status só muda para “Remessa Enviada” após o download.
           </p>
         </div>
       </div>

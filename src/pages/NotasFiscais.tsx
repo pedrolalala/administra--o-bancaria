@@ -125,7 +125,9 @@ export default function NotasFiscaisPage() {
   const fetchBoletosNF = async () => {
     let query: any = supabase
       .from('boletos')
-      .select('id, nosso_numero, numero_documento, nome_pagador, valor, vencimento, orcamento_id, status')
+      .select(
+        'id, nosso_numero, numero_documento, nome_pagador, valor, vencimento, orcamento_id, status',
+      )
       .eq('tipo', 'Nota Fiscal')
       .order('vencimento', { ascending: false })
 
@@ -148,12 +150,10 @@ export default function NotasFiscaisPage() {
     const prefix = formData.orcamento_id || orcamentoId || 'sem-orcamento'
     const filePath = `notas-fiscais/${prefix}/${Date.now()}-${safeName}`
 
-    const { error } = await supabase.storage
-      .from('notas_fiscais')
-      .upload(filePath, file, {
-        contentType: file.type || 'application/pdf',
-        upsert: false,
-      })
+    const { error } = await supabase.storage.from('notas_fiscais').upload(filePath, file, {
+      contentType: file.type || 'application/pdf',
+      upsert: false,
+    })
 
     if (error) throw error
 
@@ -249,8 +249,8 @@ export default function NotasFiscaisPage() {
           <span className="font-mono font-semibold">
             {orcamentoContext?.numero || getOrcamentoFromNota(notas[0])?.numero || orcamentoId}
           </span>
-          . Se ainda não houver nota registrada, mantenha este estado como “NF
-          pendente” até emissão real/manual ou futura API.
+          . Se ainda não houver nota registrada, mantenha este estado como “NF pendente” até emissão
+          real/manual ou futura API.
         </div>
       )}
 

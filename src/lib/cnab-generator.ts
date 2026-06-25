@@ -144,9 +144,7 @@ export function generateCnab400(boletos: any[], empresaNome: string): string {
     linhas.push(detail)
   })
 
-  const trailer = ensureCnab400Line(
-    '9' + padStr('', 393) + padNum(boletos.length + 2, 6),
-  )
+  const trailer = ensureCnab400Line('9' + padStr('', 393) + padNum(boletos.length + 2, 6))
 
   linhas.push(trailer)
 
