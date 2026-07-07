@@ -101,3 +101,10 @@ Views úteis:
 - Se precisar de novas colunas, preencha `DB_CHANGE_REQUEST_TEMPLATE.md`.
 - Automação fiscal ou bancária nova precisa de SPEC e solicitação de banco/integração antes de virar código definitivo.
 - Se precisar de API de nota fiscal ou storage OneDrive, registre pendência técnica.
+
+## SPEC-007 — SSO entre sistemas
+
+- Este app é destino do fluxo Orçamentos -> Financeiro/Bancário.
+- `AuthProvider` chama `consumeCodeFromUrl('financeiro')` antes de redirecionar para login.
+- A migration central `20260708_030_spec007_sso_cross_system` e as Edge Functions `generate-cross-system-code`/`exchange-cross-system-code` estão publicadas no Supabase remoto desde 2026-07-07; falta homologação com usuário real.
+- Não aceitar `access_token`/`refresh_token` em query string; somente `sso_code`.
