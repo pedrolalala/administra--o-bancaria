@@ -115,7 +115,11 @@ export default function RetornoBoletos() {
         setPendenteForcar({ nomeArquivo, hash, conta, registros })
         return
       }
-      toast({ variant: 'destructive', title: 'Erro ao processar retorno', description: error.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao processar retorno',
+        description: error.message,
+      })
       return
     }
 
@@ -126,7 +130,11 @@ export default function RetornoBoletos() {
       .order('nosso_numero')
 
     if (registrosError) {
-      toast({ variant: 'destructive', title: 'Erro ao carregar resultado', description: registrosError.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar resultado',
+        description: registrosError.message,
+      })
       return
     }
 
@@ -152,7 +160,11 @@ export default function RetornoBoletos() {
       const cnabData = parseCnab400(text)
 
       if (cnabData.summary.fileType !== 'RETORNO') {
-        toast({ variant: 'destructive', title: 'Atenção', description: 'O arquivo não é de RETORNO.' })
+        toast({
+          variant: 'destructive',
+          title: 'Atenção',
+          description: 'O arquivo não é de RETORNO.',
+        })
         return
       }
 
@@ -179,7 +191,12 @@ export default function RetornoBoletos() {
   const handleConfirmarForcar = async () => {
     if (!pendenteForcar) return
     setIsProcessing(true)
-    await aplicarRetorno(pendenteForcar.nomeArquivo, pendenteForcar.hash, pendenteForcar.registros, true)
+    await aplicarRetorno(
+      pendenteForcar.nomeArquivo,
+      pendenteForcar.hash,
+      pendenteForcar.registros,
+      true,
+    )
     setIsProcessing(false)
   }
 
@@ -216,7 +233,11 @@ export default function RetornoBoletos() {
       .order('nosso_numero')
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Erro ao carregar registros', description: error.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar registros',
+        description: error.message,
+      })
       return
     }
     setRegistrosArquivo((data || []) as RetornoRegistro[])
@@ -349,7 +370,9 @@ export default function RetornoBoletos() {
             {records.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
-                  {isProcessing ? 'Processando arquivo...' : 'Nenhum arquivo de retorno carregado ainda.'}
+                  {isProcessing
+                    ? 'Processando arquivo...'
+                    : 'Nenhum arquivo de retorno carregado ainda.'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -413,8 +436,8 @@ export default function RetornoBoletos() {
             <DialogDescription>
               O arquivo <span className="font-mono">{pendenteForcar?.nomeArquivo}</span> já foi
               processado anteriormente (mesmo conteúdo). Reprocessar pode gerar baixa duplicada se
-              isso não for intencional. Confirme apenas se você sabe que precisa corrigir algo
-              deste arquivo.
+              isso não for intencional. Confirme apenas se você sabe que precisa corrigir algo deste
+              arquivo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -454,17 +477,26 @@ export default function RetornoBoletos() {
                       <div className="text-xs text-muted-foreground">
                         {new Date(a.processado_em).toLocaleString('pt-BR')}
                         {a.forcado && (
-                          <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">
+                          <Badge
+                            variant="outline"
+                            className="ml-2 bg-amber-50 text-amber-700 border-amber-200"
+                          >
                             forçado
                           </Badge>
                         )}
                       </div>
                     </div>
                     <div className="flex gap-2 text-xs">
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                      >
                         {a.total_aplicados} aplicado(s)
                       </Badge>
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-200"
+                      >
                         {a.total_divergentes} divergente(s)
                       </Badge>
                       <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
@@ -487,7 +519,10 @@ export default function RetornoBoletos() {
                             <TableRow key={r.id}>
                               <TableCell className="font-mono">{r.nosso_numero}</TableCell>
                               <TableCell>
-                                <Badge variant="outline" className={statusBadgeClass[r.status_aplicacao]}>
+                                <Badge
+                                  variant="outline"
+                                  className={statusBadgeClass[r.status_aplicacao]}
+                                >
                                   {STATUS_LABEL[r.status_aplicacao]}
                                 </Badge>
                               </TableCell>
