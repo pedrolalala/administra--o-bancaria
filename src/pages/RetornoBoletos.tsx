@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -17,185 +18,213 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Save, Search, History } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Save, Search, History, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+
+interface RetornoRegistro {
+  id: string
+  nosso_numero: string
+  valor_esperado: number | null
+  valor_recebido: number | null
+  data_pagamento: string | null
+  ocorrencia_codigo: string | null
+  status_aplicacao: 'aplicado' | 'divergente' | 'nao_encontrado' | 'ja_processado'
+  motivo_divergencia: string | null
+}
+
+interface RetornoArquivo {
+  id: string
+  nome_arquivo: string
+  processado_em: string
+  total_registros: number
+  total_aplicados: number
+  total_divergentes: number
+  total_nao_encontrados: number
+  forcado: boolean
+}
+
+interface PendenteForcar {
+  nomeArquivo: string
+  hash: string
+  conta: string
+  registros: Array<{
+    nosso_numero: string
+    valor_recebido: number
+    data_pagamento: string
+    ocorrencia_codigo: string
+  }>
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+const STATUS_LABEL: Record<RetornoRegistro['status_aplicacao'], string> = {
+  aplicado: 'Aplicado',
+  divergente: 'Divergente',
+  nao_encontrado: 'Não encontrado',
+  ja_processado: 'Já processado',
+}
 
 export default function RetornoBoletos() {
   const { toast } = useToast()
 
   const [conta, setConta] = useState('BRADESCO LUCENERA')
-  const [caminho, setCaminho] = useState(
-    'C:\\CONNECT SYSTEMS\\D64C798E-7857...\\RETORNO\\CB210500.RET',
-  )
+  const [caminho, setCaminho] = useState('')
 
-  const initialRecords = [
-    {
-      id: '1',
-      nosso: '09000004227',
-      doc: 'N4644',
-      valor: 3000.0,
-      juros: 0,
-      desconto: 0,
-      pago: 3000.0,
-      venc: '2026-05-20',
-      pagto: '2026-05-20',
-      sacado: '21106 CASA AL - ANDR',
-      status: '06-Liquidação Normal',
-      selected: true,
-    },
-    {
-      id: '2',
-      nosso: '09000004663',
-      doc: 'N4696',
-      valor: 10000.0,
-      juros: 0,
-      desconto: 0,
-      pago: 10000.0,
-      venc: '2026-05-20',
-      pagto: '2026-05-20',
-      sacado: 'JOYCE YURI SILVESTRE',
-      status: '06-Liquidação Normal',
-      selected: true,
-    },
-    {
-      id: '3',
-      nosso: '09000003175',
-      doc: '13175',
-      valor: 14726.9,
-      juros: 0,
-      desconto: 0,
-      pago: 0,
-      venc: '2026-05-20',
-      pagto: '2026-05-20',
-      sacado: 'CAMILA STRANG DE PAU',
-      status: '10-Baixado Conforme instrução',
-      selected: true,
-    },
-    {
-      id: '4',
-      nosso: '09000004218',
-      doc: 'N4641',
-      valor: 1091.1,
-      juros: 0,
-      desconto: 0,
-      pago: 0,
-      venc: '2026-03-20',
-      pagto: '2026-05-20',
-      sacado: 'CAMILA STRANG DE PAU',
-      status: '10-Baixado Conforme instrução',
-      selected: true,
-    },
-  ]
-
-  const [records, setRecords] = useState(initialRecords)
+  const [records, setRecords] = useState<RetornoRegistro[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files)
-      setSelectedFiles(files)
-      setCaminho(files.map((f) => f.name).join('; '))
+  const [pendenteForcar, setPendenteForcar] = useState<PendenteForcar | null>(null)
 
-      try {
-        const file = files[0]
-        const text = await file.text()
-        const { parseCnab400 } = await import('@/lib/cnab-parser')
-        const cnabData = parseCnab400(text)
+  const [logOpen, setLogOpen] = useState(false)
+  const [logLoading, setLogLoading] = useState(false)
+  const [arquivos, setArquivos] = useState<RetornoArquivo[]>([])
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<string | null>(null)
+  const [registrosArquivo, setRegistrosArquivo] = useState<RetornoRegistro[]>([])
 
-        if (cnabData.summary.fileType === 'RETORNO') {
-          const parsedRecords = cnabData.records.map((r, i) => ({
-            id: r.id || `ret-${i}`,
-            nosso: r.nossoNumero,
-            doc: r.nf || r.nossoNumero,
-            valor: r.valor,
-            juros: 0,
-            desconto: 0,
-            pago: r.valorRecebido || r.valor,
-            venc: r.dataVencimento
-              ? r.dataVencimento.split('/').reverse().join('-')
-              : new Date().toISOString().split('T')[0],
-            pagto: new Date().toISOString().split('T')[0],
-            sacado: r.pagador,
-            status: r.ocorrencia === '06' ? '06-Liquidação Normal' : `${r.ocorrencia}-Outros`,
-            selected: true,
-          }))
+  const aplicarRetorno = async (
+    nomeArquivo: string,
+    hash: string,
+    registros: PendenteForcar['registros'],
+    forcar: boolean,
+  ) => {
+    const { data, error } = await (supabase as any).rpc('processar_retorno_bancario', {
+      p_nome_arquivo: nomeArquivo,
+      p_hash: hash,
+      p_conta: conta,
+      p_registros: registros,
+      p_forcar: forcar,
+    })
 
-          setIsProcessing(true)
-          let successCount = 0
-
-          for (const rec of parsedRecords) {
-            let boletoId = null
-            let parcelaId = null
-
-            if (rec.pago > 0) {
-              const { data } = await supabase
-                .from('boletos')
-                .update({ status: 'pago', data_pagamento: rec.pagto, valor_pago: rec.pago })
-                .eq('nosso_numero', rec.nosso)
-                .select('id, parcela_id')
-                .single()
-
-              if (data) {
-                boletoId = data.id
-                parcelaId = data.parcela_id
-                successCount++
-              }
-            } else {
-              const { data } = await supabase
-                .from('boletos')
-                .update({ status: 'Cancelado' })
-                .eq('nosso_numero', rec.nosso)
-                .select('id, parcela_id')
-                .single()
-
-              if (data) {
-                boletoId = data.id
-                parcelaId = data.parcela_id
-                successCount++
-              }
-            }
-
-            if (parcelaId && rec.pago > 0) {
-              await supabase
-                .from('projeto_parcelas')
-                .update({ status: 'paga', valor_pago: rec.pago, data_pagamento: rec.pagto })
-                .eq('id', parcelaId)
-            }
-          }
-
-          setRecords(parsedRecords)
-
-          toast({
-            title: 'Retorno Processado',
-            description: `${parsedRecords.length} lidos. ${successCount} títulos sincronizados automaticamente.`,
-          })
-          setIsProcessing(false)
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Atenção',
-            description: 'O arquivo não é de RETORNO.',
-          })
-        }
-      } catch (err: any) {
-        toast({ variant: 'destructive', title: 'Erro de Leitura', description: err.message })
+    if (error) {
+      if (!forcar && error.message?.includes('já foi processado')) {
+        setPendenteForcar({ nomeArquivo, hash, conta, registros })
+        return
       }
+      toast({ variant: 'destructive', title: 'Erro ao processar retorno', description: error.message })
+      return
     }
+
+    const { data: registrosData, error: registrosError } = await supabase
+      .from('retorno_bancario_registros')
+      .select('*')
+      .eq('arquivo_id', data.arquivo_id)
+      .order('nosso_numero')
+
+    if (registrosError) {
+      toast({ variant: 'destructive', title: 'Erro ao carregar resultado', description: registrosError.message })
+      return
+    }
+
+    setRecords((registrosData || []) as RetornoRegistro[])
+    setPendenteForcar(null)
+
+    toast({
+      title: 'Retorno processado',
+      description: `${data.aplicados} aplicado(s), ${data.divergentes} divergente(s), ${data.nao_encontrados} não encontrado(s).`,
+    })
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return
+
+    const files = Array.from(e.target.files)
+    setCaminho(files.map((f) => f.name).join('; '))
+
+    try {
+      const file = files[0]
+      const text = await file.text()
+      const { parseCnab400 } = await import('@/lib/cnab-parser')
+      const cnabData = parseCnab400(text)
+
+      if (cnabData.summary.fileType !== 'RETORNO') {
+        toast({ variant: 'destructive', title: 'Atenção', description: 'O arquivo não é de RETORNO.' })
+        return
+      }
+
+      const registros = cnabData.records.map((r) => ({
+        nosso_numero: r.nossoNumero,
+        valor_recebido: r.valorRecebido ?? r.valor,
+        data_pagamento: r.dataVencimento
+          ? r.dataVencimento.split('/').reverse().join('-')
+          : new Date().toISOString().split('T')[0],
+        ocorrencia_codigo: r.ocorrencia,
+      }))
+
+      const hash = await sha256Hex(text)
+
+      setIsProcessing(true)
+      await aplicarRetorno(file.name, hash, registros, false)
+      setIsProcessing(false)
+    } catch (err: any) {
+      setIsProcessing(false)
+      toast({ variant: 'destructive', title: 'Erro de Leitura', description: err.message })
+    }
+  }
+
+  const handleConfirmarForcar = async () => {
+    if (!pendenteForcar) return
+    setIsProcessing(true)
+    await aplicarRetorno(pendenteForcar.nomeArquivo, pendenteForcar.hash, pendenteForcar.registros, true)
+    setIsProcessing(false)
   }
 
   const handleLocalizarClick = () => {
     fileInputRef.current?.click()
   }
 
-  const toggleSelect = (id: string) => {
-    setRecords(records.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)))
+  const handleAbrirLog = async () => {
+    setLogOpen(true)
+    setLogLoading(true)
+    setArquivoSelecionado(null)
+    setRegistrosArquivo([])
+
+    const { data, error } = await supabase
+      .from('retorno_bancario_arquivos')
+      .select('*')
+      .order('processado_em', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erro ao carregar log', description: error.message })
+    } else {
+      setArquivos((data || []) as RetornoArquivo[])
+    }
+    setLogLoading(false)
   }
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
-  const formatDate = (d: string) => {
+  const handleExpandirArquivo = async (arquivoId: string) => {
+    setArquivoSelecionado(arquivoId)
+    const { data, error } = await supabase
+      .from('retorno_bancario_registros')
+      .select('*')
+      .eq('arquivo_id', arquivoId)
+      .order('nosso_numero')
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Erro ao carregar registros', description: error.message })
+      return
+    }
+    setRegistrosArquivo((data || []) as RetornoRegistro[])
+  }
+
+  const formatCurrency = (val: number | null) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val ?? 0)
+  const formatDate = (d: string | null) => {
     if (!d) return ''
     const [year, month, day] = d.split('-')
     return `${day}/${month}/${year}`
@@ -204,15 +233,20 @@ export default function RetornoBoletos() {
   const totais = useMemo(() => {
     return records.reduce(
       (acc, curr) => {
-        acc.parcelas += curr.valor
-        acc.juros += curr.juros
-        acc.desconto += curr.desconto
-        acc.pago += curr.pago
+        acc.esperado += curr.valor_esperado ?? 0
+        acc.recebido += curr.valor_recebido ?? 0
         return acc
       },
-      { parcelas: 0, juros: 0, desconto: 0, pago: 0 },
+      { esperado: 0, recebido: 0 },
     )
   }, [records])
+
+  const statusBadgeClass: Record<RetornoRegistro['status_aplicacao'], string> = {
+    aplicado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    divergente: 'bg-amber-50 text-amber-700 border-amber-200',
+    nao_encontrado: 'bg-rose-50 text-rose-700 border-rose-200',
+    ja_processado: 'bg-slate-100 text-slate-600 border-slate-200',
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
@@ -226,7 +260,6 @@ export default function RetornoBoletos() {
             ref={fileInputRef}
             className="hidden"
             accept=".RET,.ret"
-            multiple
             onChange={handleFileChange}
           />
           <Button
@@ -234,6 +267,7 @@ export default function RetornoBoletos() {
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
             onClick={handleLocalizarClick}
+            disabled={isProcessing}
           >
             <Search className="h-4 w-4" />
             <span className="text-[10px]">Localizar</span>
@@ -242,6 +276,7 @@ export default function RetornoBoletos() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleAbrirLog}
           >
             <History className="h-4 w-4" />
             <span className="text-[10px]">Log</span>
@@ -276,12 +311,13 @@ export default function RetornoBoletos() {
           <div className="col-span-8 flex gap-2 items-end">
             <div className="flex-1">
               <label className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
-                Caminho
+                Arquivo
               </label>
               <Input
                 className="h-8 text-xs bg-white text-slate-500 font-mono tracking-tight"
                 value={caminho}
-                onChange={(e) => setCaminho(e.target.value)}
+                readOnly
+                placeholder="Nenhum arquivo carregado ainda"
               />
             </div>
             <Button
@@ -289,6 +325,7 @@ export default function RetornoBoletos() {
               size="icon"
               className="h-8 w-8 shrink-0 bg-white"
               onClick={handleLocalizarClick}
+              disabled={isProcessing}
             >
               <span className="text-xs font-bold">...</span>
             </Button>
@@ -301,94 +338,174 @@ export default function RetornoBoletos() {
           <TableHeader className="sticky top-0 bg-slate-100 z-10 shadow-sm border-b">
             <TableRow className="h-9">
               <TableHead className="p-2 font-medium">Nosso Nº</TableHead>
-              <TableHead className="p-2 font-medium">Nº Doc.</TableHead>
-              <TableHead className="p-2 text-right font-medium">VL Parc.</TableHead>
-              <TableHead className="p-2 text-right font-medium">Juros</TableHead>
-              <TableHead className="p-2 text-right font-medium">Desconto</TableHead>
-              <TableHead className="p-2 text-right font-medium">Valor Pagto.</TableHead>
-              <TableHead className="p-2 text-center font-medium">Vencimento</TableHead>
+              <TableHead className="p-2 text-right font-medium">Valor Esperado</TableHead>
+              <TableHead className="p-2 text-right font-medium">Valor Recebido</TableHead>
               <TableHead className="p-2 text-center font-medium">Pagamento</TableHead>
-              <TableHead className="p-2 font-medium">Sacado</TableHead>
               <TableHead className="p-2 font-medium">Status</TableHead>
-              <TableHead className="w-10 p-2 text-center font-medium">X</TableHead>
+              <TableHead className="p-2 font-medium">Divergência</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {records.map((r, i) => (
-              <TableRow
-                key={r.id}
-                className={`h-8 transition-colors ${i === 0 ? 'bg-cyan-50/50' : 'hover:bg-slate-50'}`}
-              >
-                <TableCell className="p-2 border-r font-mono text-slate-600">{r.nosso}</TableCell>
-                <TableCell className="p-2 border-r font-medium">{r.doc}</TableCell>
-                <TableCell className="p-2 text-right border-r font-mono">
-                  {formatCurrency(r.valor)}
-                </TableCell>
-                <TableCell className="p-2 text-right border-r font-mono text-slate-500">
-                  {formatCurrency(r.juros)}
-                </TableCell>
-                <TableCell className="p-2 text-right border-r font-mono text-slate-500">
-                  {formatCurrency(r.desconto)}
-                </TableCell>
-                <TableCell className="p-2 text-right border-r font-mono font-medium">
-                  {formatCurrency(r.pago)}
-                </TableCell>
-                <TableCell className="p-2 text-center border-r">{formatDate(r.venc)}</TableCell>
-                <TableCell className="p-2 text-center border-r">{formatDate(r.pagto)}</TableCell>
-                <TableCell className="p-2 border-r truncate max-w-[250px] font-medium">
-                  {r.sacado}
-                </TableCell>
-                <TableCell className="p-2 border-r text-slate-600">{r.status}</TableCell>
-                <TableCell className="p-2 text-center border-r">
-                  <input
-                    type="checkbox"
-                    checked={r.selected}
-                    onChange={() => toggleSelect(r.id)}
-                    className="cursor-pointer scale-110 accent-primary"
-                  />
+            {records.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">
+                  {isProcessing ? 'Processando arquivo...' : 'Nenhum arquivo de retorno carregado ainda.'}
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              records.map((r) => (
+                <TableRow key={r.id} className="h-8 hover:bg-slate-50">
+                  <TableCell className="p-2 border-r font-mono text-slate-600">
+                    {r.nosso_numero}
+                  </TableCell>
+                  <TableCell className="p-2 text-right border-r font-mono">
+                    {formatCurrency(r.valor_esperado)}
+                  </TableCell>
+                  <TableCell className="p-2 text-right border-r font-mono font-medium">
+                    {formatCurrency(r.valor_recebido)}
+                  </TableCell>
+                  <TableCell className="p-2 text-center border-r">
+                    {formatDate(r.data_pagamento)}
+                  </TableCell>
+                  <TableCell className="p-2 border-r">
+                    <Badge variant="outline" className={statusBadgeClass[r.status_aplicacao]}>
+                      {STATUS_LABEL[r.status_aplicacao]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="p-2 border-r text-slate-500">
+                    {r.motivo_divergencia || '-'}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
 
       <div className="bg-slate-100/80 border-t p-4 text-xs shrink-0">
-        <div className="grid grid-cols-4 gap-6 max-w-4xl">
+        <div className="grid grid-cols-2 gap-6 max-w-2xl">
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-              Total Parcelas
+              Total Esperado
             </span>
             <div className="bg-white border rounded p-2 text-center shadow-sm font-mono text-sm text-slate-700">
-              {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(totais.parcelas)}
+              {formatCurrency(totais.esperado)}
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-              Total Juros
-            </span>
-            <div className="bg-white border rounded p-2 text-center shadow-sm font-mono text-sm text-slate-700">
-              {totais.juros}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-              Total Desconto
-            </span>
-            <div className="bg-white border rounded p-2 text-center shadow-sm font-mono text-sm text-slate-700">
-              {totais.desconto}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-              Total Pago
+              Total Recebido
             </span>
             <div className="bg-white border rounded p-2 text-center shadow-sm font-mono text-sm font-semibold text-primary">
-              {new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(totais.pago)}
+              {formatCurrency(totais.recebido)}
             </div>
           </div>
         </div>
       </div>
+
+      <Dialog open={!!pendenteForcar} onOpenChange={(open) => !open && setPendenteForcar(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Arquivo já processado
+            </DialogTitle>
+            <DialogDescription>
+              O arquivo <span className="font-mono">{pendenteForcar?.nomeArquivo}</span> já foi
+              processado anteriormente (mesmo conteúdo). Reprocessar pode gerar baixa duplicada se
+              isso não for intencional. Confirme apenas se você sabe que precisa corrigir algo
+              deste arquivo.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendenteForcar(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmarForcar} disabled={isProcessing}>
+              <Save className="h-4 w-4 mr-1" />
+              Forçar reprocessamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={logOpen} onOpenChange={setLogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Log de arquivos processados</DialogTitle>
+            <DialogDescription>Histórico de retornos bancários processados.</DialogDescription>
+          </DialogHeader>
+
+          {logLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Carregando...</p>
+          ) : arquivos.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Nenhum arquivo processado ainda.</p>
+          ) : (
+            <div className="space-y-2">
+              {arquivos.map((a) => (
+                <div key={a.id} className="border rounded">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-50"
+                    onClick={() => handleExpandirArquivo(a.id)}
+                  >
+                    <div>
+                      <div className="font-medium text-sm">{a.nome_arquivo}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(a.processado_em).toLocaleString('pt-BR')}
+                        {a.forcado && (
+                          <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">
+                            forçado
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                        {a.total_aplicados} aplicado(s)
+                      </Badge>
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                        {a.total_divergentes} divergente(s)
+                      </Badge>
+                      <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
+                        {a.total_nao_encontrados} não encontrado(s)
+                      </Badge>
+                    </div>
+                  </button>
+                  {arquivoSelecionado === a.id && (
+                    <div className="border-t p-2">
+                      <Table className="text-xs">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nosso Nº</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Valor Recebido</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {registrosArquivo.map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell className="font-mono">{r.nosso_numero}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={statusBadgeClass[r.status_aplicacao]}>
+                                  {STATUS_LABEL[r.status_aplicacao]}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {formatCurrency(r.valor_recebido)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
