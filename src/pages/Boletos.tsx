@@ -45,6 +45,12 @@ export default function BoletosPage() {
   const [filterEmpresa, setFilterEmpresa] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterTipo, setFilterTipo] = useState('all')
+  // Pedido do usuario (06/08/2026): tipo_operacao (Pagar/Receber) e perfil
+  // (Ribeirao/Sao Paulo) ja existiam na tabela boletos mas nao apareciam em
+  // lugar nenhum da UI de Controle de Boletos -- nem pra filtrar, nem pra
+  // criar/editar um boleto. Mesma convencao ja usada em
+  // ConsultarDuplicatas.tsx/pedidos_compra/etc.
+  const [filterTipoOperacao, setFilterTipoOperacao] = useState('all')
   const [filterProjeto, setFilterProjeto] = useState('all')
   const [filterDataInicio, setFilterDataInicio] = useState('')
   const [filterDataFim, setFilterDataFim] = useState('')
@@ -63,6 +69,8 @@ export default function BoletosPage() {
     vencimento: '',
     status: 'Pendente',
     tipo: 'Normal',
+    tipo_operacao: 'CR',
+    perfil: '',
     empresa_id: '',
     parcela_id: '',
     orcamento_id: '',
@@ -133,6 +141,8 @@ export default function BoletosPage() {
         vencimento: formData.vencimento || null,
         status: formData.status,
         tipo: formData.tipo,
+        tipo_operacao: formData.tipo_operacao,
+        perfil: formData.perfil || null,
         empresa_id: formData.empresa_id || null,
         parcela_id: formData.parcela_id || null,
         orcamento_id: formData.orcamento_id || orcamentoId || null,
@@ -162,6 +172,8 @@ export default function BoletosPage() {
       vencimento: boleto.vencimento || '',
       status: boleto.status || 'Pendente',
       tipo: boleto.tipo || 'Normal',
+      tipo_operacao: boleto.tipo_operacao || 'CR',
+      perfil: boleto.perfil || '',
       empresa_id: boleto.empresa_id || '',
       parcela_id: boleto.parcela_id || '',
       orcamento_id: boleto.orcamento_id || '',
@@ -180,6 +192,8 @@ export default function BoletosPage() {
       vencimento: '',
       status: 'Pendente',
       tipo: 'Normal',
+      tipo_operacao: 'CR',
+      perfil: '',
       empresa_id: '',
       parcela_id: '',
       orcamento_id: orcamentoId || '',
@@ -193,6 +207,7 @@ export default function BoletosPage() {
       if (filterEmpresa !== 'all' && b.empresa_id !== filterEmpresa) return false
       if (filterStatus !== 'all' && b.status !== filterStatus) return false
       if (filterTipo !== 'all' && b.tipo !== filterTipo) return false
+      if (filterTipoOperacao !== 'all' && b.tipo_operacao !== filterTipoOperacao) return false
       if (filterProjeto !== 'all' && getProjetoFromBoleto(b)?.id !== filterProjeto) return false
 
       if (filterDataInicio && (!b.vencimento || b.vencimento < filterDataInicio)) return false
@@ -208,6 +223,7 @@ export default function BoletosPage() {
     filterEmpresa,
     filterStatus,
     filterTipo,
+    filterTipoOperacao,
     filterProjeto,
     filterDataInicio,
     filterDataFim,
@@ -312,6 +328,19 @@ export default function BoletosPage() {
           </Select>
         </div>
         <div className="space-y-2">
+          <Label>Pagar / Receber</Label>
+          <Select value={filterTipoOperacao} onValueChange={setFilterTipoOperacao}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="CR">Contas a Receber</SelectItem>
+              <SelectItem value="CP">Contas a Pagar</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
           <Label>Projeto</Label>
           <Select value={filterProjeto} onValueChange={setFilterProjeto}>
             <SelectTrigger>
@@ -377,6 +406,8 @@ export default function BoletosPage() {
                 <TableHead className="text-right">Vencimento</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead className="text-center">Tipo</TableHead>
+                <TableHead className="text-center">Pagar/Receber</TableHead>
+                <TableHead className="text-center">Perfil</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -384,13 +415,13 @@ export default function BoletosPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={12} className="text-center py-8">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filteredBoletos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={12} className="text-center py-8">
                     Nenhum boleto encontrado.
                   </TableCell>
                 </TableRow>
@@ -433,6 +464,25 @@ export default function BoletosPage() {
                       >
                         {b.tipo}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {b.tipo_operacao ? (
+                        <Badge
+                          variant="outline"
+                          className={
+                            b.tipo_operacao === 'CP'
+                              ? 'bg-orange-50 text-orange-700'
+                              : 'bg-sky-50 text-sky-700'
+                          }
+                        >
+                          {b.tipo_operacao === 'CP' ? 'Pagar' : 'Receber'}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-slate-300">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-xs text-slate-500">
+                      {b.perfil === 'ribeirao' ? 'Ribeirão' : b.perfil === 'sao_paulo' ? 'São Paulo' : '-'}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge
@@ -553,6 +603,38 @@ export default function BoletosPage() {
                 <SelectContent>
                   <SelectItem value="Normal">Normal</SelectItem>
                   <SelectItem value="Nota Fiscal">Nota Fiscal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Pagar / Receber <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.tipo_operacao}
+                onValueChange={(v) => setFormData({ ...formData, tipo_operacao: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CR">Contas a Receber</SelectItem>
+                  <SelectItem value="CP">Contas a Pagar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Perfil</Label>
+              <Select
+                value={formData.perfil}
+                onValueChange={(v) => setFormData({ ...formData, perfil: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Não informado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ribeirao">Ribeirão</SelectItem>
+                  <SelectItem value="sao_paulo">São Paulo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
