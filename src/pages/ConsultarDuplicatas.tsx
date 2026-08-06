@@ -64,7 +64,14 @@ export default function ConsultarDuplicatas() {
   }, [])
 
   const filteredData = useMemo(() => {
+    // "Tipo" (Pagar/Receber) só existia como campo visual até agora — não
+    // filtrava nada de verdade. boletos.tipo_operacao é a coluna real:
+    // 'CR' = Contas a Receber (todos os 21 registros hoje), 'CP' = Contas
+    // a Pagar (nenhum registro ainda — a tela mostra vazio corretamente
+    // até existir dado de CP importado/lançado).
+    const tipoOperacaoAlvo = filtros.tipo === 'Pagar' ? 'CP' : 'CR'
     return data.filter((d) => {
+      if (d.tipo_operacao !== tipoOperacaoAlvo) return false
       if (filtros.tipoSituacao !== 'Todos') {
         if (filtros.tipoSituacao === 'Aberto' && d.status !== 'Pendente') return false
         if (filtros.tipoSituacao === 'Pago' && d.status !== 'Pago') return false
@@ -124,8 +131,38 @@ export default function ConsultarDuplicatas() {
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold text-slate-800">Consultar Duplicatas</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-semibold text-slate-800">
+            Contas a {filtros.tipo === 'Pagar' ? 'Pagar' : 'Receber'}
+          </h1>
+          {/* Botão de alternância Receber/Pagar — antes era só um Select
+              pequeno dentro da grade de filtros, que nem chegava a filtrar
+              nada. Agora fica visível no topo e liga direto no filtro real
+              (boletos.tipo_operacao). */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setFiltros({ ...filtros, tipo: 'Receber' })}
+              className={
+                filtros.tipo === 'Receber'
+                  ? 'px-3 py-1.5 bg-primary text-primary-foreground'
+                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50'
+              }
+            >
+              Receber
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltros({ ...filtros, tipo: 'Pagar' })}
+              className={
+                filtros.tipo === 'Pagar'
+                  ? 'px-3 py-1.5 bg-primary text-primary-foreground border-l border-slate-200'
+                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 border-l border-slate-200'
+              }
+            >
+              Pagar
+            </button>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button
@@ -183,19 +220,7 @@ export default function ConsultarDuplicatas() {
       <div className="p-3 border-b bg-slate-100/80 shrink-0">
         <div className="font-semibold text-xs mb-2 text-slate-700">Informações da Conta</div>
         <div className="grid grid-cols-12 gap-3 mb-3">
-          <div className="col-span-1">
-            <label className="text-[10px] text-slate-500 font-medium uppercase">Tipo</label>
-            <Select value={filtros.tipo} onValueChange={(v) => setFiltros({ ...filtros, tipo: v })}>
-              <SelectTrigger className="h-7 text-xs bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Pagar">Pagar</SelectItem>
-                <SelectItem value="Receber">Receber</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-3">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Operação</label>
             <Select
               value={filtros.operacao}
