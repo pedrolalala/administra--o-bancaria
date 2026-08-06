@@ -30,7 +30,11 @@ export default function ConsultarDuplicatas() {
     tipo: 'Pagar',
     operacao: 'Todas',
     empresa: 'ISLIGHT',
-    perfilEmpresa: 'RIBEIRAO PRETO',
+    // Pedido do usuario (06/08/2026): "RIBEIRAO PRETO" era um valor fixo
+    // que nunca batia com boletos.perfil de verdade ('ribeirao'/
+    // 'sao_paulo', SPEC-064) — o filtro nunca filtrava nada. Corrigido
+    // pra usar os valores reais.
+    perfilEmpresa: 'todos',
     tipoSituacao: 'Todos',
     tipoData: 'Vencimento',
     dataInicio: '2026-06-01',
@@ -94,6 +98,7 @@ export default function ConsultarDuplicatas() {
       if (filtros.empresa && filtros.empresa !== 'Todas') {
         if (d.empresas?.nome !== filtros.empresa) return false
       }
+      if (filtros.perfilEmpresa !== 'todos' && d.perfil !== filtros.perfilEmpresa) return false
       return true
     })
   }, [data, filtros])
@@ -265,7 +270,9 @@ export default function ConsultarDuplicatas() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="RIBEIRAO PRETO">RIBEIRAO PRETO</SelectItem>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="ribeirao">Ribeirão</SelectItem>
+                <SelectItem value="sao_paulo">São Paulo</SelectItem>
               </SelectContent>
             </Select>
           </div>

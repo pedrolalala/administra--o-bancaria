@@ -52,6 +52,12 @@ export default function NotasFiscaisPage() {
     orcamento_id: '',
     boleto_id: '',
     arquivo: null as File | null,
+    // Pedido do usuario (06/08/2026): antes nao tinha como determinar se a
+    // nota fiscal registrada era de Contas a Pagar ou a Receber, nem qual
+    // perfil (Ribeirao/Sao Paulo) -- mesma convencao ja usada em
+    // boletos.tipo_operacao/perfil.
+    tipo_operacao: 'CR',
+    perfil: '',
   })
 
   // Linking Modal
@@ -175,6 +181,8 @@ export default function NotasFiscaisPage() {
         orcamento_id: formData.orcamento_id || orcamentoId || null,
         boleto_id: formData.boleto_id || null,
         arquivo_url: arquivoUrl,
+        tipo_operacao: formData.tipo_operacao,
+        perfil: formData.perfil || null,
       } as any
 
       const { error } = await supabase.from('notas_fiscais').insert([payload])
@@ -191,6 +199,8 @@ export default function NotasFiscaisPage() {
         orcamento_id: orcamentoId || '',
         boleto_id: '',
         arquivo: null,
+        tipo_operacao: 'CR',
+        perfil: '',
       })
       fetchNotas()
     } catch (err: any) {
@@ -284,6 +294,38 @@ export default function NotasFiscaisPage() {
           <FileText className="h-5 w-5 text-primary" /> Registrar Nova Nota
         </h3>
         <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>
+              Tipo <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={formData.tipo_operacao}
+              onValueChange={(v) => setFormData({ ...formData, tipo_operacao: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CR">Contas a Receber</SelectItem>
+                <SelectItem value="CP">Contas a Pagar</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Perfil</Label>
+            <Select
+              value={formData.perfil}
+              onValueChange={(v) => setFormData({ ...formData, perfil: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Não informado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ribeirao">Ribeirão</SelectItem>
+                <SelectItem value="sao_paulo">São Paulo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Número da NF</Label>
             <Input
@@ -379,6 +421,8 @@ export default function NotasFiscaisPage() {
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead>Nº NF / Série</TableHead>
+              <TableHead className="text-center">Tipo</TableHead>
+              <TableHead className="text-center">Perfil</TableHead>
               <TableHead>Orçamento / Projeto</TableHead>
               <TableHead>Emissão</TableHead>
               <TableHead>Fornecedor</TableHead>
@@ -390,13 +434,13 @@ export default function NotasFiscaisPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   Carregando...
                 </TableCell>
               </TableRow>
             ) : notas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   {orcamentoId
                     ? 'NF pendente de emissão para este orçamento.'
                     : 'Nenhuma NF registrada.'}
@@ -407,6 +451,25 @@ export default function NotasFiscaisPage() {
                 <TableRow key={nf.id}>
                   <TableCell className="font-medium">
                     {nf.numero_nf} {nf.serie ? `- ${nf.serie}` : ''}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant="outline"
+                      className={
+                        nf.tipo_operacao === 'CP'
+                          ? 'bg-orange-50 text-orange-700'
+                          : 'bg-sky-50 text-sky-700'
+                      }
+                    >
+                      {nf.tipo_operacao === 'CP' ? 'Pagar' : 'Receber'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center text-xs text-slate-500">
+                    {nf.perfil === 'ribeirao'
+                      ? 'Ribeirão'
+                      : nf.perfil === 'sao_paulo'
+                        ? 'São Paulo'
+                        : '-'}
                   </TableCell>
                   <TableCell className="text-xs text-slate-600">
                     <div className="flex flex-col">
