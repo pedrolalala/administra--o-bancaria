@@ -6,6 +6,7 @@ import { consumeCodeFromUrl } from '@/lib/cross-system-auth'
 interface AuthContextType {
   user: User | null
   session: Session | null
+  hasAccess: boolean | null
   signUp: (email: string, password: string) => Promise<{ error: any }>
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<{ error: any }>
@@ -23,22 +24,65 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // SPEC-069: este app só checava estar logado, sem nenhuma permissão
+  // granular do Hub. Consulta a mesma RPC que o Hub usa (hub_pode_executar,
+  // SPEC-006) para o sistema inteiro ('financeiro', sem módulo/ação
+  // específicos). Pela matriz, só admin_geral tem acesso aqui.
   useEffect(() => {
+    if (!user?.id) {
+      setHasAccess(null)
+      return
+    }
+    supabase
+      .rpc('hub_pode_executar', {
+        p_usuario_id: user.id,
+        p_system_slug: 'financeiro',
+        p_modulo_chave: null,
+        p_acao: null,
+      })
+      .then(({ data }) => setHasAccess(Boolean(data)))
+  }, [user?.id])
+
+  useEffect(() => {
+    let mounted = true
+    let initialized = false
+
+    // Acesso vindo da Central chega com ?sso_code na URL. onAuthStateChange
+    // dispara um evento inicial com a sessão que já existia ANTES da troca
+    // desse código terminar (normalmente nula, numa aba nova) — se esse
+    // evento resolvesse "loading" pra false direto, o app achava que
+    // ninguém tinha logado antes da troca terminar, "bugando" o clique
+    // vindo da Central (reproduzido: usuário caía direto na tela de login
+    // mesmo com a troca de sessão tendo funcionado no servidor). Por isso a
+    // resolução real só acontece depois do consumeCodeFromUrl + getSession
+    // abaixo.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted || !initialized) return
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
     })
-    consumeCodeFromUrl('financeiro').finally(() => supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    }))
-    return () => subscription.unsubscribe()
+
+    consumeCodeFromUrl('financeiro')
+      .catch(() => {})
+      .finally(() => {
+        supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+          if (!mounted) return
+          initialized = true
+          setSession(initialSession)
+          setUser(initialSession?.user ?? null)
+          setLoading(false)
+        })
+      })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async (email: string, password: string) => {
@@ -49,19 +93,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     })
     return { error }
   }
-
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error }
   }
-
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
     return { error }
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, signUp, signIn, signOut, loading }}>
+    <AuthContext.Provider value={{ user, session, hasAccess, signUp, signIn, signOut, loading }}>
       {children}
     </AuthContext.Provider>
   )
