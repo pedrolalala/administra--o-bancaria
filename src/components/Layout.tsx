@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LogOut, Menu } from 'lucide-react'
+import { Building2, LogOut, Menu } from 'lucide-react'
 import logoUrl from '@/assets/logotipo-verticalv1preto-b4de9.png'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
@@ -71,6 +71,11 @@ export default function Layout() {
         </nav>
 
         <div className="absolute right-6 flex items-center gap-4 hidden md:flex">
+          <Button variant="ghost" size="icon" asChild title="Voltar para a Central Lucenera">
+            <a href="https://central-lucenera.goskip.app/">
+              <Building2 className="h-4 w-4" />
+            </a>
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => signOut()} title="Sair">
             <LogOut className="h-4 w-4" />
           </Button>
