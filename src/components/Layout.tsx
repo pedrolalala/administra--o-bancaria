@@ -72,7 +72,7 @@ export default function Layout() {
 
         <div className="absolute right-6 flex items-center gap-4 hidden md:flex">
           <Button variant="ghost" size="icon" asChild title="Voltar para a Central Lucenera">
-            <a href="https://central-lucenera.goskip.app/">
+            <a href="https://central-lucenera-dashboard-1c9ba.goskip.app/dashboard">
               <Building2 className="h-4 w-4" />
             </a>
           </Button>
