@@ -427,7 +427,7 @@ export default function BoletosPage() {
                 </TableRow>
               ) : (
                 filteredBoletos.map((b) => (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.id} onDoubleClick={() => openEdit(b)} className="cursor-pointer">
                     <TableCell className="font-mono text-xs">{b.nosso_numero}</TableCell>
                     <TableCell className="text-xs">{b.numero_documento || '-'}</TableCell>
                     <TableCell className="font-medium truncate max-w-[150px]">
