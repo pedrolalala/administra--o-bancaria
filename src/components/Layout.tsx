@@ -14,6 +14,7 @@ export default function Layout() {
   const navLinks = [
     { name: 'Notas Fiscais', path: '/notas-fiscais' },
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
+    { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
     { name: 'Controle de Boletos', path: '/boletos' },
     { name: 'Gerar Remessa', path: '/remessa' },
     { name: 'Retorno de Boletos', path: '/retorno-boletos' },

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase/client'
 import {
   Table,
@@ -23,8 +24,10 @@ import { useToast } from '@/hooks/use-toast'
 
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set())
 
   const [filtros, setFiltros] = useState({
     tipo: 'Pagar',
@@ -133,6 +136,54 @@ export default function ConsultarDuplicatas() {
     return days > 0 ? days : ''
   }
 
+  const toggleSelecionada = (id: string) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // "Exportar" abre a tela "Baixar Duplicata" com as duplicatas
+  // selecionadas (ou vazio, pra localizar de la mesmo) -- fluxo pedido
+  // explicitamente pelo usuario (SPEC-073).
+  const handleExportar = () => {
+    navigate('/baixar-duplicata', { state: { ids: Array.from(selecionadas) } })
+  }
+
+  // "Editar" so faz sentido com exatamente 1 duplicata selecionada -- abre
+  // Cadastrar Duplicatas no modo edicao da "conta" (grupo de parcelas) dela.
+  const handleEditar = () => {
+    if (selecionadas.size !== 1) {
+      toast({
+        title: 'Selecione uma duplicata',
+        description: 'Marque exatamente uma linha na grade para editar.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const id = Array.from(selecionadas)[0]
+    const duplicata = data.find((d) => d.id === id)
+    if (!duplicata?.conta_grupo_id) {
+      toast({
+        title: 'Duplicata sem grupo de conta',
+        description: 'Este registro foi criado antes da SPEC-073 e não tem edição estruturada disponível ainda.',
+        variant: 'destructive',
+      })
+      return
+    }
+    navigate(`/cadastrar-duplicata?id=${duplicata.conta_grupo_id}`)
+  }
+
+  // "Executar", "Acordo" e "Info": sem especificacao clara do que devem
+  // fazer (nao ha equivalente identificavel no restante do sistema nem na
+  // spec fornecida) -- sinalizados como pendentes em vez de adivinhar
+  // regra de negocio nova (SPEC-073, secao "Pendências").
+  const handleNaoImplementado = (nome: string) => {
+    toast({ title: `"${nome}" ainda não implementado`, description: 'Aguardando definição do fluxo.' })
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
@@ -174,6 +225,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleEditar}
           >
             <Pencil className="h-4 w-4" />
             <span className="text-[10px]">Editar</span>
@@ -191,6 +243,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={() => handleNaoImplementado('Executar')}
           >
             <Play className="h-4 w-4" />
             <span className="text-[10px]">Executar</span>
@@ -199,6 +252,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={() => handleNaoImplementado('Acordo')}
           >
             <Handshake className="h-4 w-4" />
             <span className="text-[10px]">Acordo</span>
@@ -207,6 +261,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleExportar}
           >
             <Download className="h-4 w-4" />
             <span className="text-[10px]">Exportar</span>
@@ -215,6 +270,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={() => handleNaoImplementado('Info')}
           >
             <Info className="h-4 w-4" />
             <span className="text-[10px]">Info</span>
@@ -433,9 +489,33 @@ export default function ConsultarDuplicatas() {
               </TableRow>
             ) : (
               filteredData.map((d) => (
-                <TableRow key={d.id} className="h-7 hover:bg-primary/5 transition-colors group">
+                <TableRow
+                  key={d.id}
+                  className={`h-7 hover:bg-primary/5 transition-colors group cursor-pointer ${
+                    selecionadas.has(d.id) ? 'bg-primary/10' : ''
+                  }`}
+                  onClick={() => toggleSelecionada(d.id)}
+                  onDoubleClick={() => {
+                    if (!d.conta_grupo_id) {
+                      toast({
+                        title: 'Duplicata sem grupo de conta',
+                        description:
+                          'Este registro foi criado antes da SPEC-073 e não tem edição estruturada disponível ainda.',
+                        variant: 'destructive',
+                      })
+                      return
+                    }
+                    navigate(`/cadastrar-duplicata?id=${d.conta_grupo_id}`)
+                  }}
+                >
                   <TableCell className="p-1 text-center border-r">
-                    <input type="checkbox" className="cursor-pointer" />
+                    <input
+                      type="checkbox"
+                      className="cursor-pointer"
+                      checked={selecionadas.has(d.id)}
+                      onChange={() => toggleSelecionada(d.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </TableCell>
                   <TableCell className="p-1 text-center border-r text-slate-500">A</TableCell>
                   <TableCell className="p-1 text-center border-r text-slate-500">N</TableCell>
