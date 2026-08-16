@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -64,6 +64,14 @@ export default function NotasFiscaisPage() {
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [selectedNFId, setSelectedNFId] = useState('')
   const [selectedBoletoId, setSelectedBoletoId] = useState('')
+
+  // SPEC-114: busca por cliente/venda nos dois seletores de boleto (form de
+  // registro e modal de vínculo) — reunião Vinícius 14/08, ele mesmo
+  // confundiu qual parcela (P1/P2/P3) era qual quando os valores eram
+  // parecidos. Não existe campo de "número de parcela" em boletos, então
+  // deriva-se agrupando por orcamento_id e ordenando por vencimento.
+  const [boletoSearchForm, setBoletoSearchForm] = useState('')
+  const [boletoSearchModal, setBoletoSearchModal] = useState('')
 
   useEffect(() => {
     fetchOrcamentoContext()
@@ -211,6 +219,7 @@ export default function NotasFiscaisPage() {
   const openLinkModal = (nfId: string) => {
     setSelectedNFId(nfId)
     setSelectedBoletoId('')
+    setBoletoSearchModal('')
     setShowLinkModal(true)
   }
 
@@ -232,7 +241,7 @@ export default function NotasFiscaisPage() {
   }
 
   const getOrcamentoFromNota = (nota: any) =>
-    Array.isArray(nota.orcamentos) ? nota.orcamentos[0] : nota.orcamentos
+    nota ? (Array.isArray(nota.orcamentos) ? nota.orcamentos[0] : nota.orcamentos) : null
 
   const formatCurrency = (value: number | string | null | undefined) =>
     value
@@ -241,6 +250,59 @@ export default function NotasFiscaisPage() {
           currency: 'BRL',
         }).format(Number(value))
       : '-'
+
+  const formatVencimento = (value: string | null | undefined) =>
+    value ? format(new Date(value), 'dd/MM/yyyy') : '-'
+
+  // SPEC-114: não existe campo de "número de parcela" em boletos — deriva
+  // um rótulo P1/P2/P3 agrupando por orcamento_id e ordenando por
+  // vencimento crescente. Só serve pra diferenciar visualmente parcelas da
+  // mesma venda, não é um dado gravado em lugar nenhum.
+  const parcelaPorBoletoId = useMemo(() => {
+    const grupos = new Map<string, any[]>()
+    for (const b of boletosNF) {
+      const chave = b.orcamento_id || 'sem-orcamento'
+      if (!grupos.has(chave)) grupos.set(chave, [])
+      grupos.get(chave)!.push(b)
+    }
+    const map: Record<string, number> = {}
+    grupos.forEach((itens) => {
+      if (itens.length < 2) return
+      const ordenado = [...itens].sort((a, b) => {
+        const va = a.vencimento ? new Date(a.vencimento).getTime() : 0
+        const vb = b.vencimento ? new Date(b.vencimento).getTime() : 0
+        return va - vb
+      })
+      ordenado.forEach((item, idx) => {
+        map[item.id] = idx + 1
+      })
+    })
+    return map
+  }, [boletosNF])
+
+  const boletoLabel = (b: any) => {
+    const parcela = parcelaPorBoletoId[b.id]
+    const partes = [
+      parcela ? `P${parcela}` : null,
+      b.nome_pagador || 'Sem nome',
+      `venc. ${formatVencimento(b.vencimento)}`,
+      formatCurrency(b.valor),
+    ].filter(Boolean)
+    return partes.join(' · ')
+  }
+
+  const filtrarBoletos = (lista: any[], termo: string) => {
+    const t = termo.trim().toLowerCase()
+    if (!t) return lista
+    return lista.filter((b) =>
+      [b.nome_pagador, b.nosso_numero, b.numero_documento]
+        .filter(Boolean)
+        .some((campo) => String(campo).toLowerCase().includes(t)),
+    )
+  }
+
+  const boletosFormFiltrados = filtrarBoletos(boletosNF, boletoSearchForm)
+  const boletosModalFiltrados = filtrarBoletos(boletosNF, boletoSearchModal)
 
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20 p-6 w-full max-w-7xl mx-auto">
@@ -381,6 +443,12 @@ export default function NotasFiscaisPage() {
           )}
           <div className="space-y-2">
             <Label>Boleto vinculado</Label>
+            <Input
+              placeholder="Buscar por cliente ou número..."
+              value={boletoSearchForm}
+              onChange={(e) => setBoletoSearchForm(e.target.value)}
+              className="mb-1 text-sm"
+            />
             <Select
               value={formData.boleto_id}
               onValueChange={(v) => setFormData({ ...formData, boleto_id: v })}
@@ -389,11 +457,17 @@ export default function NotasFiscaisPage() {
                 <SelectValue placeholder="Selecione o boleto" />
               </SelectTrigger>
               <SelectContent>
-                {boletosNF.map((boleto) => (
-                  <SelectItem key={boleto.id} value={boleto.id}>
-                    {boleto.nosso_numero} — {formatCurrency(boleto.valor)}
-                  </SelectItem>
-                ))}
+                {boletosFormFiltrados.length === 0 ? (
+                  <div className="px-2 py-4 text-center text-xs text-slate-500">
+                    Nenhum boleto encontrado.
+                  </div>
+                ) : (
+                  boletosFormFiltrados.map((boleto) => (
+                    <SelectItem key={boleto.id} value={boleto.id}>
+                      {boletoLabel(boleto)}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -524,32 +598,54 @@ export default function NotasFiscaisPage() {
             </p>
             <div className="space-y-2">
               <Label>Boleto Disponível</Label>
+              <Input
+                placeholder="Buscar por cliente ou número..."
+                value={boletoSearchModal}
+                onChange={(e) => setBoletoSearchModal(e.target.value)}
+                className="text-sm"
+              />
               <div className="max-h-60 overflow-y-auto border rounded-md divide-y">
-                {boletosNF.length === 0 ? (
+                {boletosModalFiltrados.length === 0 ? (
                   <div className="p-4 text-center text-sm text-slate-500">
-                    Nenhum boleto tipo "Nota Fiscal" disponível.
+                    {boletosNF.length === 0
+                      ? 'Nenhum boleto tipo "Nota Fiscal" disponível.'
+                      : 'Nenhum boleto encontrado pra essa busca.'}
                   </div>
                 ) : (
-                  boletosNF.map((b) => (
-                    <div
-                      key={b.id}
-                      className={`p-3 cursor-pointer hover:bg-slate-50 transition-colors flex justify-between items-center ${selectedBoletoId === b.id ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
-                      onClick={() => setSelectedBoletoId(b.id)}
-                    >
-                      <div>
-                        <div className="font-mono text-sm font-medium">{b.nosso_numero}</div>
-                        <div className="text-xs text-slate-500">
-                          {b.nome_pagador} (NF ref: {b.numero_documento || 'S/N'})
+                  boletosModalFiltrados.map((b) => {
+                    const parcela = parcelaPorBoletoId[b.id]
+                    return (
+                      <div
+                        key={b.id}
+                        className={`p-3 cursor-pointer hover:bg-slate-50 transition-colors flex justify-between items-center gap-3 ${selectedBoletoId === b.id ? 'bg-primary/5 border-l-2 border-primary' : ''}`}
+                        onClick={() => setSelectedBoletoId(b.id)}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {parcela && (
+                              <Badge
+                                variant="outline"
+                                className="bg-violet-50 text-violet-700 text-[10px] px-1.5 py-0"
+                              >
+                                P{parcela}
+                              </Badge>
+                            )}
+                            <span className="font-mono text-sm font-medium truncate">
+                              {b.nosso_numero}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-600 font-medium truncate">
+                            {b.nome_pagador || 'Sem nome'}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            Venc. {formatVencimento(b.vencimento)} · NF ref:{' '}
+                            {b.numero_documento || 'S/N'}
+                          </div>
                         </div>
+                        <div className="font-mono text-sm shrink-0">{formatCurrency(b.valor)}</div>
                       </div>
-                      <div className="font-mono text-sm">
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(b.valor)}
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
