@@ -90,8 +90,21 @@ export default function ConsultarDuplicatas() {
         )
           return false
       }
-      if (filtros.pessoa && !d.nome_pagador?.toLowerCase().includes(filtros.pessoa.toLowerCase()))
-        return false
+      // SPEC-116: campo "Pessoa" passa a aceitar múltiplos termos em
+      // qualquer ordem, sem distinção de acento (ex.: "silva joao" acha
+      // "João da Silva") — antes era a frase inteira, sensível a acento.
+      if (filtros.pessoa) {
+        const normalize = (v: string) =>
+          v
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .toLowerCase()
+        const terms = normalize(filtros.pessoa.trim())
+          .split(/\s+/)
+          .filter(Boolean)
+        const haystack = normalize(d.nome_pagador || '')
+        if (!terms.every((t) => haystack.includes(t))) return false
+      }
       if (
         filtros.duplicata &&
         !d.numero_documento?.toLowerCase().includes(filtros.duplicata.toLowerCase())
