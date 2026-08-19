@@ -24,6 +24,8 @@ Principais tabelas:
 - `remessas`
 - `retornos_processados`
 - `transacoes`
+- `negociacoes`
+- `plano_de_contas`
 - `contas_bancarias`
 - `categorias_financeiras`
 
@@ -83,6 +85,43 @@ Views úteis:
 - `transacao_id`
 - `venda_id`
 - `orcamento_id`
+
+`transacoes` possui (universo diferente de `boletos` — SPEC-117, tela "Contas em Aberto"):
+
+- `id`
+- `tipo` (enum `transacao_tipo`: `receita`/`despesa`/`transferencia`; `despesa` = Contas a Pagar, `receita` = Contas a Receber)
+- `descricao`
+- `valor`
+- `dt_emissao`, `dt_vencimento`, `dt_pagamento`
+- `num_parc`
+- `status_pago` (smallint: `0`=ABERTO, `1`=PAGO, `2`=CANCELADO — **nunca** tratar `1` nem `2` como "em aberto")
+- `negociacao_id` (FK para `negociacoes`)
+- `empresa_id` (FK direta para `empresas`; existe em paralelo à FK `negociacoes.empresa_id` — a tela "Contas em Aberto" usa a de `negociacoes`, replicando `scripts/panorama_financeiro/exportar_nao_quitadas.py`)
+- `perfil` (`ribeirao`/`sao_paulo`/null — SPEC-064; **não aparece no `supabase/db/current/01_schema_full.sql` central nem em `src/lib/supabase/types.ts` deste sistema, mas existe de fato no banco desde a migration `20260805_077`** — achado colateral da SPEC-117, snapshot central está atrasado)
+
+`negociacoes` possui:
+
+- `id`
+- `empresa_id` (FK para `empresas`)
+- `contato_id` (FK para `contatos`, pode ser nulo)
+- `plano_contas_id` (FK para `plano_de_contas`, pode ser nulo)
+- `tipo` (mesmo enum `transacao_tipo`)
+- `cod_duplicata`
+- `total_parc`
+
+`plano_de_contas` possui:
+
+- `id`
+- `nome`
+- `nivel`
+- `parent_id` (hierarquia grupo/subgrupo/categoria)
+
+## Contas em Aberto (SPEC-117)
+
+- Página `src/pages/ContasEmAberto.tsx` (rota `/contas-em-aberto`) lê `transacoes` filtrando `status_pago = 0`, com joins/embeds supabase-js equivalentes a `transacoes JOIN negociacoes JOIN empresas LEFT JOIN contatos LEFT JOIN plano_de_contas`.
+- É um universo **desconectado** de `boletos` — não existe FK entre as duas tabelas. Não confundir: `ConsultarDuplicatas.tsx`/`Boletos.tsx` continuam lendo só `boletos`.
+- ~2.382 linhas com `status_pago = 0` hoje (acima do cap silencioso de 1000 do PostgREST — a página pagina a busca em lotes com `.range()`, achado da SPEC-081).
+- `dt_vencimento` com ano fora de 2000-2100 é dado corrompido conhecido (import antigo) — a página trata como inválido em vez de calcular atraso sem sentido, mesma regra de `scripts/panorama_financeiro/exportar_nao_quitadas.py`.
 
 ## Decisões de negócio
 

@@ -8,6 +8,7 @@ import BoletosPage from './pages/Boletos'
 import RemessaPage from './pages/Remessa'
 import NotasFiscaisPage from './pages/NotasFiscais'
 import ConsultarDuplicatas from './pages/ConsultarDuplicatas'
+import ContasEmAberto from './pages/ContasEmAberto'
 import BaixarDuplicata from './pages/BaixarDuplicata'
 import CadastrarDuplicata from './pages/CadastrarDuplicata'
 import RetornoBoletos from './pages/RetornoBoletos'
@@ -49,6 +50,7 @@ const AppRoutes = () => {
       >
         <Route path="/" element={<Navigate to="/duplicatas" replace />} />
         <Route path="/duplicatas" element={<ConsultarDuplicatas />} />
+        <Route path="/contas-em-aberto" element={<ContasEmAberto />} />
         <Route path="/baixar-duplicata" element={<BaixarDuplicata />} />
         <Route path="/cadastrar-duplicata" element={<CadastrarDuplicata />} />
         <Route path="/retorno-boletos" element={<RetornoBoletos />} />
