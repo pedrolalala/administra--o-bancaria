@@ -8,7 +8,15 @@ Se uma demanda exigir estrutura de banco que não aparece neste contexto, docume
 
 ## Papel do sistema
 
-Sistema financeiro para boletos, notas fiscais, remessa e retorno bancário.
+Sistema financeiro para boletos, duplicatas, contas a pagar/receber, remessa e retorno bancário.
+
+**SPEC-153 (2026-09-17): nota fiscal saiu deste sistema.** A rota `/notas-fiscais`
+(`src/pages/NotasFiscais.tsx`) foi removida do roteamento (`App.tsx`) e do menu
+(`Layout.tsx`) — o arquivo continua no disco sem uso, não é mais alcançável.
+Registro/emissão de nota fiscal agora mora no sistema novo "Vendas"
+(`04-Sistemas/vendas-lucenera`, slug `vendas`), acoplado à emissão real via
+Focus NFe (SPEC-154). O schema (`notas_fiscais`/`notas_fiscais_itens`)
+continua compartilhado — só o CRUD não mora mais aqui.
 
 ## Objetos reais relevantes no Supabase
 
@@ -57,7 +65,7 @@ Views úteis:
 - `comprovante_url`
 - `orcamento_id`
 
-`notas_fiscais` possui:
+`notas_fiscais` possui (CRUD real agora em `vendas-lucenera`, schema compartilhado):
 
 - `id`
 - `numero_nf`
@@ -69,6 +77,23 @@ Views úteis:
 - `arquiteto`
 - `boleto_id`
 - `orcamento_id`
+- `tipo_operacao`/`perfil` (SPEC-generic, mesma convenção de `boletos`)
+- `cliente_id` (uuid, `REFERENCES contatos(id)`, nullable — SPEC-153: pagador real da nota parcial quando cadastrado, pode divergir de `orcamentos.cliente_id`)
+- `nome_destinatario` (text, nullable — SPEC-153: pagador real sem cadastro em `contatos`, ex. cônjuge)
+
+`notas_fiscais_itens` (nova, SPEC-153) possui:
+
+- `id`
+- `nota_fiscal_id` (FK `notas_fiscais.id`)
+- `orcamento_item_id` (FK `orcamento_itens.id`)
+- `quantidade_faturada`, `valor_faturado`
+- `created_at`
+
+Rastreia, por venda, quais itens do orçamento (e quanto de cada) já foram
+cobertos por nota fiscal parcial — `SUM(quantidade_faturada)` por
+`orcamento_item_id` nunca pode ultrapassar `orcamento_itens.quantidade`,
+garantido pela RPC `registrar_nota_fiscal_parcial` (transacional), não por
+trigger. Ver `supabase/db/migrations/20260917_153_notas_fiscais_parcial_multipagador/`.
 
 `projeto_parcelas` possui:
 

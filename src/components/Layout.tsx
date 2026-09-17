@@ -12,7 +12,6 @@ export default function Layout() {
   const pathname = location.pathname
 
   const navLinks = [
-    { name: 'Notas Fiscais', path: '/notas-fiscais' },
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
