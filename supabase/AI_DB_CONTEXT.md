@@ -141,6 +141,13 @@ Views úteis:
 - Automação fiscal ou bancária nova precisa de SPEC e solicitação de banco/integração antes de virar código definitivo.
 - Se precisar de API de nota fiscal ou storage OneDrive, registre pendência técnica.
 
+## SPEC-152 — Contrapartida automática de permuta (2026-09-17)
+
+- Quando um orçamento tem uma parcela `forma_pagamento = 'permuta'`, `aprovar_orcamento_financeiro` (sistema Orçamentos) passa a inserir automaticamente um `boletos` com `tipo_operacao = 'CP'` + `apropriacao_id` apontando pra categoria nova `plano_de_contas.nome = 'PERMUTA/CONTRAPARTIDA'` (nível 3/Apropriação, `parent_id` = "Com Vendas") — mesmo padrão manual já usado em `CadastrarDuplicata.tsx` (SPEC-073), reaproveitado em vez de criar uma FK nova em `negociacoes`/`transacoes`.
+- Rastreável até a origem por `boletos.orcamento_id` (já existente) — aparece nas telas de Contas a Pagar (`ConsultarDuplicatas.tsx`/`Boletos.tsx`) igual a qualquer outra duplicata manual, sem tratamento especial na UI desta SPEC.
+- `projeto_parcelas.permuta_fornecedor_id` (uuid, `REFERENCES contatos(id)`, nullable) guarda o fornecedor da contrapartida — só a parcela do lado Orçamentos, não duplicado em `boletos`.
+- Fora de escopo desta SPEC: nenhuma tela nova neste sistema — a contrapartida só aparece como mais uma linha de Contas a Pagar já existente.
+
 ## SPEC-007 — SSO entre sistemas
 
 - Este app é destino do fluxo Orçamentos -> Financeiro/Bancário.
