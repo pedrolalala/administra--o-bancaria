@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   Table,
@@ -59,7 +59,8 @@ interface PendenteForcar {
     nosso_numero: string
     valor_recebido: number
     data_pagamento: string
-    ocorrencia_codigo: string
+    ocorrencia_codigo: string | undefined
+    motivo?: string
   }>
 }
 
@@ -81,8 +82,23 @@ const STATUS_LABEL: Record<RetornoRegistro['status_aplicacao'], string> = {
 export default function RetornoBoletos() {
   const { toast } = useToast()
 
-  const [conta, setConta] = useState('BRADESCO LUCENERA')
+  // SPEC-165: contas vindas de contas_bancarias (antes eram fixas
+  // "BRADESCO LUCENERA / ISLIGHT / SLIDE", que nem batiam com as empresas).
+  const [contas, setContas] = useState<{ id: string; nome: string }[]>([])
+  const [conta, setConta] = useState('')
   const [caminho, setCaminho] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('contas_bancarias')
+      .select('id, nome')
+      .ilike('banco', '%bradesco%')
+      .order('nome')
+      .then(({ data }) => {
+        setContas(data || [])
+        if (data?.length) setConta((prev) => prev || data[0].nome)
+      })
+  }, [])
 
   const [records, setRecords] = useState<RetornoRegistro[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -168,13 +184,16 @@ export default function RetornoBoletos() {
         return
       }
 
+      // SPEC-165: data do pagamento = data do crédito (296-301) ou, na
+      // falta, data da ocorrência (111-116). Antes usava um trecho do
+      // arquivo que não era data nenhuma.
       const registros = cnabData.records.map((r) => ({
         nosso_numero: r.nossoNumero,
-        valor_recebido: r.valorRecebido ?? r.valor,
-        data_pagamento: r.dataVencimento
-          ? r.dataVencimento.split('/').reverse().join('-')
-          : new Date().toISOString().split('T')[0],
+        valor_recebido: r.valorRecebido ?? 0,
+        data_pagamento:
+          r.dataCredito || r.dataOcorrencia || new Date().toISOString().split('T')[0],
         ocorrencia_codigo: r.ocorrencia,
+        motivo: r.motivos || undefined,
       }))
 
       const hash = await sha256Hex(text)
@@ -185,6 +204,9 @@ export default function RetornoBoletos() {
     } catch (err: any) {
       setIsProcessing(false)
       toast({ variant: 'destructive', title: 'Erro de Leitura', description: err.message })
+    } finally {
+      // Permite escolher o mesmo arquivo de novo.
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -308,13 +330,7 @@ export default function RetornoBoletos() {
       <div className="p-4 bg-slate-100/80 border-b shrink-0">
         <div className="font-semibold text-xs mb-3 text-slate-700">Conta</div>
         <div className="grid grid-cols-12 gap-3 items-end">
-          <div className="col-span-1">
-            <label className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
-              Código
-            </label>
-            <Input className="h-8 text-xs bg-white font-mono" value="2" readOnly />
-          </div>
-          <div className="col-span-3">
+          <div className="col-span-4">
             <label className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
               Conta
             </label>
@@ -323,9 +339,11 @@ export default function RetornoBoletos() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="BRADESCO LUCENERA">BRADESCO LUCENERA</SelectItem>
-                <SelectItem value="BRADESCO ISLIGHT">BRADESCO ISLIGHT</SelectItem>
-                <SelectItem value="BRADESCO SLIDE">BRADESCO SLIDE</SelectItem>
+                {contas.map((c) => (
+                  <SelectItem key={c.id} value={c.nome}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

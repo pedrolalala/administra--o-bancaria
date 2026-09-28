@@ -29,6 +29,16 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -40,6 +50,7 @@ export default function BoletosPage() {
   const [empresas, setEmpresas] = useState<any[]>([])
   const [parcelas, setParcelas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [boletoExcluir, setBoletoExcluir] = useState<any | null>(null)
 
   // Filters
   const [filterEmpresa, setFilterEmpresa] = useState('all')
@@ -120,8 +131,24 @@ export default function BoletosPage() {
     setLoading(false)
   }
 
+  const podeExcluir = (b: any) =>
+    !['Pago', 'Remessa Enviada', 'Registrado'].includes(b.status) && !b.nosso_numero_banco
+
+  const pedirExclusao = (b: any) => {
+    if (!podeExcluir(b)) {
+      toast({
+        variant: 'destructive',
+        title: 'Boleto não pode ser excluído',
+        description:
+          'Já foi enviado ao banco ou está pago. Cancele no banco e marque como "Cancelado" em vez de excluir.',
+      })
+      return
+    }
+    setBoletoExcluir(b)
+  }
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Deseja realmente excluir este boleto?')) return
+    setBoletoExcluir(null)
     const { error } = await supabase.from('boletos').delete().eq('id', id)
     if (error) {
       toast({ variant: 'destructive', title: 'Erro', description: error.message })
@@ -148,13 +175,14 @@ export default function BoletosPage() {
         orcamento_id: formData.orcamento_id || orcamentoId || null,
       } as any
 
-      if (isEditing) {
-        await supabase.from('boletos').update(payload).eq('id', formData.id)
-        toast({ title: 'Sucesso', description: 'Boleto atualizado.' })
-      } else {
-        await supabase.from('boletos').insert([payload])
-        toast({ title: 'Sucesso', description: 'Boleto criado.' })
-      }
+      if (!payload.nosso_numero?.trim()) throw new Error('Informe o nosso número.')
+      if (!(payload.valor > 0)) throw new Error('Informe um valor maior que zero.')
+      // SPEC-165: antes o erro do banco era ignorado e aparecia "Sucesso".
+      const { error } = isEditing
+        ? await supabase.from('boletos').update(payload).eq('id', formData.id)
+        : await supabase.from('boletos').insert([payload])
+      if (error) throw error
+      toast({ title: 'Sucesso', description: isEditing ? 'Boleto atualizado.' : 'Boleto criado.' })
       setOpenModal(false)
       fetchBoletos()
     } catch (e: any) {
@@ -514,7 +542,7 @@ export default function BoletosPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDelete(b.id)}
+                        onClick={() => pedirExclusao(b)}
                         title="Excluir"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -527,6 +555,27 @@ export default function BoletosPage() {
           </Table>
         </div>
       </div>
+
+      <AlertDialog open={!!boletoExcluir} onOpenChange={(o) => !o && setBoletoExcluir(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir boleto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {boletoExcluir?.numero_documento || boletoExcluir?.nosso_numero} ·{' '}
+              {boletoExcluir?.nome_pagador}. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => boletoExcluir && handleDelete(boletoExcluir.id)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={openModal} onOpenChange={setOpenModal}>
         <DialogContent className="max-w-2xl">

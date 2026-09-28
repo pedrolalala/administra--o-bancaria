@@ -23,6 +23,10 @@ import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 
 interface ParcelaLinha {
+  // SPEC-165: id da linha já gravada (edição) e se ela já foi paga --
+  // parcela paga não é alterada nem removida pela edição.
+  id?: string
+  pago?: boolean
   parcela: number
   valor: string
   vencimento: string
@@ -61,7 +65,6 @@ export default function CadastrarDuplicata() {
   // Gerar Conta
   const [dataEmissao, setDataEmissao] = useState(new Date().toISOString().slice(0, 10))
   const [tipo, setTipo] = useState<'CP' | 'CR'>('CP')
-  const [operacao, setOperacao] = useState('Todas')
   const [empresaId, setEmpresaId] = useState('')
   const [perfilEmpresa, setPerfilEmpresa] = useState('')
   const [responsavelId, setResponsavelId] = useState('')
@@ -69,6 +72,10 @@ export default function CadastrarDuplicata() {
   const [referencia, setReferencia] = useState('')
   const [tipoPessoa, setTipoPessoa] = useState<'fornecedor' | 'cliente'>('fornecedor')
   const [pessoaId, setPessoaId] = useState('')
+  // Nome gravado no boleto -- preservado na edição quando a duplicata antiga
+  // não tem contato_id (antes a edição salvava o nome em branco).
+  const [nomePagadorOriginal, setNomePagadorOriginal] = useState('')
+  const [idsOriginais, setIdsOriginais] = useState<string[]>([])
   const [grupoId, setGrupoId] = useState('')
   const [subGrupoId, setSubGrupoId] = useState('')
   const [apropriacaoId, setApropriacaoId] = useState('')
@@ -114,9 +121,22 @@ export default function CadastrarDuplicata() {
       .select('*')
       .eq('conta_grupo_id', contaGrupoId)
       .order('num_parcela')
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!data || data.length === 0) return
         const first = data[0]
+        setNomePagadorOriginal(first.nome_pagador || '')
+        setIdsOriginais(data.map((b: any) => b.id))
+        if (first.contato_id) {
+          const { data: contato } = await supabase
+            .from('contatos')
+            .select('id, tipo')
+            .eq('id', first.contato_id)
+            .maybeSingle()
+          if (contato) {
+            setTipoPessoa(contato.tipo === 'cliente' ? 'cliente' : 'fornecedor')
+            setPessoaId(contato.id)
+          }
+        }
         setDataEmissao(first.emissao || new Date().toISOString().slice(0, 10))
         setTipo((first.tipo_operacao as 'CP' | 'CR') || 'CP')
         setEmpresaId(first.empresa_id || '')
@@ -129,8 +149,10 @@ export default function CadastrarDuplicata() {
         setContaBancariaId(first.conta_bancaria_id || '')
         setObservacao(first.observacao || '')
         setParcelas(
-          data.map((b: any) => ({
-            parcela: b.num_parcela || 1,
+          data.map((b: any, idx: number) => ({
+            id: b.id,
+            pago: b.status === 'Pago',
+            parcela: b.num_parcela || idx + 1,
             valor: String(b.valor ?? ''),
             vencimento: b.vencimento || '',
             linhaDigitavel: b.linha_digitavel || '',
@@ -152,6 +174,18 @@ export default function CadastrarDuplicata() {
     [planoContas, subGrupoId],
   )
 
+  // Na edição, reconstrói Grupo/Sub grupo a partir da Apropriação gravada
+  // (antes os dois ficavam vazios e o select de Apropriação desabilitado).
+  useEffect(() => {
+    if (!apropriacaoId || grupoId || planoContas.length === 0) return
+    const aprop = planoContas.find((p) => p.id === apropriacaoId)
+    const sub = aprop ? planoContas.find((p) => p.id === aprop.parent_id) : null
+    if (sub) {
+      setSubGrupoId(sub.id)
+      setGrupoId(sub.parent_id || '')
+    }
+  }, [apropriacaoId, planoContas, grupoId])
+
   const proximaParcela = parcelas.length + 1
   const totalParcAtingido = parcelas.length >= (parseInt(numParc, 10) || 0)
 
@@ -160,8 +194,13 @@ export default function CadastrarDuplicata() {
     const base = new Date(vencPrimeiraParc + 'T12:00:00')
     if (numeroParcela === 1) return vencPrimeiraParc
     const diaNum = parseInt(dia, 10) || base.getDate()
-    const venc = new Date(base.getFullYear(), base.getMonth() + (numeroParcela - 1), diaNum)
-    return venc.toISOString().slice(0, 10)
+    const ano = base.getFullYear()
+    const mes = base.getMonth() + (numeroParcela - 1)
+    // "Dia 31" em mês curto vira o último dia do mês (antes pulava pro mês seguinte).
+    const ultimoDia = new Date(ano, mes + 1, 0).getDate()
+    const venc = new Date(ano, mes, Math.min(diaNum, ultimoDia), 12)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${venc.getFullYear()}-${pad(venc.getMonth() + 1)}-${pad(venc.getDate())}`
   }
 
   const handleAdicionarParcela = () => {
@@ -185,6 +224,10 @@ export default function CadastrarDuplicata() {
   }
 
   const handleRemoverParcela = (parcela: number) => {
+    if (parcelas.find((p) => p.parcela === parcela)?.pago) {
+      toast({ title: 'Parcela já paga não pode ser removida', variant: 'destructive' })
+      return
+    }
     setParcelas((prev) =>
       prev.filter((p) => p.parcela !== parcela).map((p, idx) => ({ ...p, parcela: idx + 1 })),
     )
@@ -215,44 +258,84 @@ export default function CadastrarDuplicata() {
       return
     }
 
+    if (parcelas.some((p) => !(parseFloat(p.valor) > 0))) {
+      toast({ title: 'Valor da parcela deve ser maior que zero', variant: 'destructive' })
+      return
+    }
+
     setSaving(true)
     try {
-      const grupoId = contaGrupoId || crypto.randomUUID()
+      const grupoContaId = contaGrupoId || crypto.randomUUID()
       const pessoa = contatos.find((c) => c.id === pessoaId)
       const totalParcelas = parcelas.length
+      const nomePagador = pessoa?.razao_social || pessoa?.nome || nomePagadorOriginal || ''
 
-      if (isEditing) {
-        // Remove as parcelas antigas e recria -- mais simples e seguro do
-        // que tentar casar linha a linha (usuario pode adicionar/remover
-        // parcelas ao editar).
-        await supabase.from('boletos').delete().eq('conta_grupo_id', grupoId)
-      }
-
-      const rows = parcelas.map((p) => ({
-        nosso_numero: `DUP${Date.now()}${p.parcela}`,
-        nome_pagador: pessoa?.razao_social || pessoa?.nome || '',
-        valor: parseFloat(p.valor),
-        vencimento: p.vencimento,
-        status: situacao,
+      // Campos da "conta" (comuns a todas as parcelas).
+      const comuns = {
+        nome_pagador: nomePagador,
+        contato_id: pessoaId || null,
         empresa_id: empresaId,
         numero_documento: nf || null,
-        tipo: 'Normal',
         tipo_operacao: tipo,
-        num_parcela: p.parcela,
         total_parcelas: totalParcelas,
         emissao: dataEmissao,
         perfil: perfilEmpresa || null,
         apropriacao_id: apropriacaoId || null,
         conta_bancaria_id: contaBancariaId || null,
-        linha_digitavel: p.linhaDigitavel || null,
         responsavel_id: responsavelId || null,
         referencia: referencia || null,
-        conta_grupo_id: grupoId,
+        conta_grupo_id: grupoContaId,
         observacao: observacao || null,
-      }))
+      }
 
-      const { error } = await supabase.from('boletos').insert(rows)
-      if (error) throw error
+      // SPEC-165: edição atualiza cada parcela NO LUGAR (antes apagava tudo e
+      // recriava, perdendo a baixa das parcelas pagas e duplicando se a
+      // exclusão falhasse). Parcela paga fica intacta; removida só se não paga.
+      const idsMantidos = new Set(parcelas.filter((p) => p.id).map((p) => p.id as string))
+      const idsRemover = idsOriginais.filter((id) => !idsMantidos.has(id))
+      if (idsRemover.length > 0) {
+        const { error: delError } = await supabase
+          .from('boletos')
+          .delete()
+          .in('id', idsRemover)
+          .neq('status', 'Pago')
+        if (delError) throw delError
+      }
+
+      for (const p of parcelas) {
+        if (p.id && p.pago) continue
+        const linha = {
+          ...comuns,
+          valor: parseFloat(p.valor),
+          vencimento: p.vencimento,
+          status: situacao,
+          num_parcela: p.parcela,
+          linha_digitavel: p.linhaDigitavel || null,
+        }
+        const { error } = p.id
+          ? await supabase.from('boletos').update(linha as any).eq('id', p.id)
+          : await supabase.from('boletos').insert({
+              ...linha,
+              nosso_numero: `DUP${Date.now()}${p.parcela}`,
+              tipo: 'Normal',
+            } as any)
+        if (error) throw error
+      }
+
+      // Parcelas pagas recebem só dados descritivos -- nada que mexa na baixa.
+      const pagas = parcelas.filter((p) => p.id && p.pago).map((p) => p.id as string)
+      if (pagas.length > 0) {
+        const { error } = await supabase
+          .from('boletos')
+          .update({
+            total_parcelas: totalParcelas,
+            referencia: comuns.referencia,
+            observacao: comuns.observacao,
+            apropriacao_id: comuns.apropriacao_id,
+          } as any)
+          .in('id', pagas)
+        if (error) throw error
+      }
 
       toast({ title: 'Sucesso', description: `${totalParcelas} parcela(s) salva(s).` })
       navigate('/duplicatas')
@@ -291,17 +374,6 @@ export default function CadastrarDuplicata() {
                 <SelectContent>
                   <SelectItem value="CP">Pagar</SelectItem>
                   <SelectItem value="CR">Receber</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Operação">
-              <Select value={operacao} onValueChange={setOperacao}>
-                <SelectTrigger className="h-7 text-xs bg-slate-50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todas">Todas</SelectItem>
-                  <SelectItem value="Venda">Venda</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -575,6 +647,7 @@ export default function CadastrarDuplicata() {
                     <TableRow key={p.parcela} className="h-9">
                       <TableCell className="p-1 text-center font-medium">
                         {p.parcela}/{parcelas.length}
+                        {p.pago && <span className="ml-1 text-emerald-600">(paga)</span>}
                       </TableCell>
                       <TableCell className="p-1">
                         <Input
@@ -582,6 +655,7 @@ export default function CadastrarDuplicata() {
                           step="0.01"
                           className="h-7 text-xs text-right"
                           value={p.valor}
+                          disabled={p.pago}
                           onChange={(e) => updateParcela(p.parcela, 'valor', e.target.value)}
                         />
                       </TableCell>
@@ -590,6 +664,7 @@ export default function CadastrarDuplicata() {
                           type="date"
                           className="h-7 text-xs"
                           value={p.vencimento}
+                          disabled={p.pago}
                           onChange={(e) => updateParcela(p.parcela, 'vencimento', e.target.value)}
                         />
                       </TableCell>

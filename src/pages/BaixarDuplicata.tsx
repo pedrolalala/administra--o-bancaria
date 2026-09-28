@@ -53,7 +53,8 @@ export default function BaixarDuplicata() {
   const [planoContas, setPlanoContas] = useState<any[]>([])
 
   // Filtros de localizacao (mesma logica de ConsultarDuplicatas.tsx)
-  const [filtroTipo, setFiltroTipo] = useState<'CP' | 'CR'>('CP')
+  const [filtroTipo, setFiltroTipo] = useState<'CP' | 'CR'>('CR')
+  const [tipoResolvido, setTipoResolvido] = useState(idsIniciais.length === 0)
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroFatura, setFiltroFatura] = useState('')
   const [filtroBoleto, setFiltroBoleto] = useState('')
@@ -94,10 +95,28 @@ export default function BaixarDuplicata() {
     setDuplicatas(data || [])
   }
 
+  // SPEC-165: com ids vindos do "Exportar", descobre o tipo (Pagar/Receber)
+  // pelas próprias duplicatas antes da primeira busca.
   useEffect(() => {
+    if (idsIniciais.length === 0) return
+    supabase
+      .from('boletos')
+      .select('tipo_operacao')
+      .in('id', idsIniciais)
+      .limit(1)
+      .then(({ data }) => {
+        const tipo = data?.[0]?.tipo_operacao
+        if (tipo === 'CP' || tipo === 'CR') setFiltroTipo(tipo)
+        setTipoResolvido(true)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!tipoResolvido) return
     fetchDuplicatas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroTipo])
+  }, [filtroTipo, tipoResolvido])
 
   const filtradas = useMemo(() => {
     return duplicatas.filter((d) => {
@@ -165,6 +184,15 @@ export default function BaixarDuplicata() {
       const jurosVal = parseFloat(jurosMulta) || 0
       const descontoVal = parseFloat(desconto) || 0
       const selecionadasArr = duplicatas.filter((d) => selecionadas.has(d.id))
+      if (selecionadasArr.length === 0) {
+        throw new Error('As duplicatas selecionadas não estão na lista atual. Localize-as de novo.')
+      }
+      const jaPagas = selecionadasArr.filter((d) => d.status === 'Pago')
+      if (jaPagas.length > 0) {
+        throw new Error(
+          `${jaPagas.map((d) => d.numero_documento || d.nosso_numero).join(', ')} já tem baixa. Desmarque para continuar.`,
+        )
+      }
 
       const results = await Promise.all(
         selecionadasArr.map((d) => {
@@ -312,7 +340,9 @@ export default function BaixarDuplicata() {
                           onClick={(e) => e.stopPropagation()}
                         />
                       </TableCell>
-                      <TableCell className="p-1 font-mono">{d.nosso_numero}</TableCell>
+                      <TableCell className="p-1 font-mono">
+                        {d.numero_documento || d.nosso_numero}
+                      </TableCell>
                       <TableCell className="p-1 truncate max-w-[160px]">{d.nome_pagador}</TableCell>
                       <TableCell className="p-1 text-center">{formatDate(d.vencimento)}</TableCell>
                       <TableCell className="p-1 text-right font-mono">
@@ -512,7 +542,9 @@ export default function BaixarDuplicata() {
               ) : (
                 baixadas.map((b) => (
                   <TableRow key={b.id} className="h-7">
-                    <TableCell className="p-1 font-mono">{b.nosso_numero}</TableCell>
+                    <TableCell className="p-1 font-mono">
+                      {b.numero_documento || b.nosso_numero}
+                    </TableCell>
                     <TableCell className="p-1 text-center">{formatDate(b.data_pagamento)}</TableCell>
                     <TableCell className="p-1 text-center">{getAtraso(b.vencimento)}</TableCell>
                     <TableCell className="p-1 text-right font-mono">

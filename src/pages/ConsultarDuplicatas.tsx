@@ -21,6 +21,8 @@ import {
 import { differenceInDays, parseISO } from 'date-fns'
 import { Pencil, Search, Play, Handshake, Download, Info } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
+import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
 
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
@@ -28,11 +30,19 @@ export default function ConsultarDuplicatas() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set())
+  const [showExecutar, setShowExecutar] = useState(false)
+  const [showInfo, setShowInfo] = useState(false)
+  const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   const [filtros, setFiltros] = useState({
-    tipo: 'Pagar',
-    operacao: 'Todas',
-    empresa: 'ISLIGHT',
+    // SPEC-165: abre em Receber -- boletos quase não tem CP; as contas a
+    // pagar reais (Connect) estão em "Contas em Aberto".
+    tipo: 'Receber',
+    // Achado 2026-08-20: filtro de empresa vinha travado em 'ISLIGHT' por
+    // padrão -- qualquer duplicata de outra empresa (FOCO, SLIDE, LUCENERA)
+    // ficava invisível na primeira tela ("Nenhum registro encontrado"),
+    // parecendo bug de dado ausente sem ser.
+    empresa: 'Todas',
     // Pedido do usuario (06/08/2026): "RIBEIRAO PRETO" era um valor fixo
     // que nunca batia com boletos.perfil de verdade ('ribeirao'/
     // 'sao_paulo', SPEC-064) — o filtro nunca filtrava nada. Corrigido
@@ -40,35 +50,53 @@ export default function ConsultarDuplicatas() {
     perfilEmpresa: 'todos',
     tipoSituacao: 'Todos',
     tipoData: 'Vencimento',
-    dataInicio: '2026-06-01',
-    dataFinal: '2026-06-30',
+    // Achado 2026-08-20: Data início/Data final nunca filtravam nada de
+    // verdade (não eram lidos em filteredData) -- e o valor padrão era um
+    // intervalo fixo de junho/2026, que já teria escondido tudo assim que
+    // o filtro passasse a funcionar de fato. Corrigido pra filtrar por
+    // vencimento e nascer vazio (sem filtro nenhum por padrão).
+    dataInicio: '',
+    dataFinal: '',
     venda: '',
     fatura: '',
     duplicata: '',
     boleto: '',
     pessoa: '',
-    funcionario: 'Funcionario',
-    codigo: '430',
   })
 
   const fetchData = async () => {
     setLoading(true)
-    const { data: result, error } = await supabase.from('boletos').select(`
-      *,
-      empresas (nome)
-    `)
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' })
-    } else {
-      setData(result || [])
+    const PAGE = 1000
+    let all: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data: page, error } = await (supabase as any)
+        .from('boletos')
+        .select('*, empresas (nome), orcamentos (numero, numero_venda)')
+        .order('vencimento', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) {
+        toast({ title: 'Erro', description: error.message, variant: 'destructive' })
+        setLoading(false)
+        return
+      }
+      all = all.concat(page || [])
+      if (!page || page.length < PAGE) break
     }
+    setData(all)
     setLoading(false)
   }
 
   useEffect(() => {
     fetchData()
+    supabase
+      .from('empresas')
+      .select('id, nome')
+      .order('nome')
+      .then(({ data: emp }) => setEmpresas(emp || []))
   }, [])
+
+  const getOrcamento = (d: any) => (Array.isArray(d.orcamentos) ? d.orcamentos[0] : d.orcamentos)
+  const getVenda = (d: any) => getOrcamento(d)?.numero_venda || d.venda || ''
 
   const filteredData = useMemo(() => {
     // "Tipo" (Pagar/Receber) só existia como campo visual até agora — não
@@ -80,13 +108,19 @@ export default function ConsultarDuplicatas() {
     return data.filter((d) => {
       if (d.tipo_operacao !== tipoOperacaoAlvo) return false
       if (filtros.tipoSituacao !== 'Todos') {
-        if (filtros.tipoSituacao === 'Aberto' && d.status !== 'Pendente') return false
+        // Achado 2026-08-20: RPC aprovar_orcamento_financeiro cria todo
+        // boleto novo com status='pendente_registro' (26 dos 44 boletos
+        // reais hoje), e a remessa avança pra 'Remessa Enviada' (9) -- só
+        // 'Pago' é de fato encerrado. O filtro "Aberto" aqui só reconhecia
+        // o status legado 'Pendente' (7 registros), escondendo a maioria
+        // das duplicatas realmente em aberto. Mesmo critério que a coluna
+        // "A"/"P" da grade já usava (d.status === 'Pago' ? 'P' : 'A').
+        const isAberto = d.status !== 'Pago'
+        if (filtros.tipoSituacao === 'Aberto' && !isAberto) return false
         if (filtros.tipoSituacao === 'Pago' && d.status !== 'Pago') return false
         if (
           filtros.tipoSituacao === 'Vencido' &&
-          d.status === 'Pendente' &&
-          d.vencimento &&
-          new Date(d.vencimento) < new Date()
+          !(isAberto && d.vencimento && new Date(d.vencimento) < new Date())
         )
           return false
       }
@@ -110,11 +144,31 @@ export default function ConsultarDuplicatas() {
         !d.numero_documento?.toLowerCase().includes(filtros.duplicata.toLowerCase())
       )
         return false
+      const contem = (valor: any, termo: string) =>
+        String(valor || '')
+          .toLowerCase()
+          .includes(termo.trim().toLowerCase())
+      if (filtros.venda && !contem(getVenda(d), filtros.venda) && !contem(getOrcamento(d)?.numero, filtros.venda))
+        return false
+      if (filtros.fatura && !contem(d.fatura, filtros.fatura)) return false
+      if (
+        filtros.boleto &&
+        !contem(d.nosso_numero, filtros.boleto) &&
+        !contem(d.nosso_numero_banco, filtros.boleto)
+      )
+        return false
 
       if (filtros.empresa && filtros.empresa !== 'Todas') {
         if (d.empresas?.nome !== filtros.empresa) return false
       }
       if (filtros.perfilEmpresa !== 'todos' && d.perfil !== filtros.perfilEmpresa) return false
+
+      // Único "Tipo data" disponível hoje é Vencimento -- filtra por
+      // d.vencimento quando início/final estiverem preenchidos.
+      if (filtros.dataInicio && (!d.vencimento || d.vencimento < filtros.dataInicio))
+        return false
+      if (filtros.dataFinal && (!d.vencimento || d.vencimento > filtros.dataFinal)) return false
+
       return true
     })
   }, [data, filtros])
@@ -122,11 +176,13 @@ export default function ConsultarDuplicatas() {
   const totais = useMemo(() => {
     return filteredData.reduce(
       (acc, curr) => {
-        const isVencido =
-          curr.status === 'Pendente' && curr.vencimento && new Date(curr.vencimento) < new Date()
+        // Mesmo achado do filtro "Aberto" acima -- 'pendente_registro' e
+        // 'Remessa Enviada' também são situações em aberto, não só 'Pendente'.
+        const isAberto = curr.status !== 'Pago'
+        const isVencido = isAberto && curr.vencimento && new Date(curr.vencimento) < new Date()
         if (isVencido) acc.vencido += Number(curr.valor || 0)
-        if (curr.status === 'Pendente' && !isVencido) acc.aVencer += Number(curr.valor || 0)
-        if (curr.status === 'Pendente') acc.aberto += Number(curr.valor || 0)
+        if (isAberto && !isVencido) acc.aVencer += Number(curr.valor || 0)
+        if (isAberto) acc.aberto += Number(curr.valor || 0)
         if (curr.status === 'Pago') acc.pago += Number(curr.valor_pago || curr.valor || 0)
         acc.total += Number(curr.valor || 0)
         return acc
@@ -134,6 +190,8 @@ export default function ConsultarDuplicatas() {
       { vencido: 0, aVencer: 0, aberto: 0, pago: 0, total: 0 },
     )
   }, [filteredData])
+
+  const baixadasSelecionadas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
@@ -163,6 +221,43 @@ export default function ConsultarDuplicatas() {
   // explicitamente pelo usuario (SPEC-073).
   const handleExportar = () => {
     navigate('/baixar-duplicata', { state: { ids: Array.from(selecionadas) } })
+  }
+
+  // "Executar": definido pelo usuário em 2026-08-20 (SPEC-073 P-1) -- dar
+  // baixa direto nas duplicatas selecionadas, num modal inline, sem
+  // precisar navegar até "Baixar Duplicata".
+  const handleExecutar = () => {
+    if (selecionadas.size === 0) {
+      toast({
+        title: 'Selecione ao menos uma duplicata',
+        variant: 'destructive',
+      })
+      return
+    }
+    const jaPagas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
+    if (jaPagas.length > 0) {
+      toast({
+        title: 'Há duplicata já paga na seleção',
+        description: `${jaPagas.map((d) => d.numero_documento || d.nosso_numero).join(', ')} já tem baixa. Desmarque para continuar.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    setShowExecutar(true)
+  }
+
+  // "Info": definido pelo usuário em 2026-08-20 (SPEC-073 P-2) -- detalhes
+  // completos da duplicata selecionada, exige exatamente 1.
+  const handleInfo = () => {
+    if (selecionadas.size !== 1) {
+      toast({
+        title: 'Selecione uma duplicata',
+        description: 'Marque exatamente uma linha na grade para ver os detalhes.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setShowInfo(true)
   }
 
   // "Editar" so faz sentido com exatamente 1 duplicata selecionada -- abre
@@ -198,7 +293,7 @@ export default function ConsultarDuplicatas() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
+    <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-y-auto text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold text-slate-800">
@@ -256,7 +351,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
-            onClick={() => handleNaoImplementado('Executar')}
+            onClick={handleExecutar}
           >
             <Play className="h-4 w-4" />
             <span className="text-[10px]">Executar</span>
@@ -283,7 +378,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
-            onClick={() => handleNaoImplementado('Info')}
+            onClick={handleInfo}
           >
             <Info className="h-4 w-4" />
             <span className="text-[10px]">Info</span>
@@ -294,22 +389,7 @@ export default function ConsultarDuplicatas() {
       <div className="p-3 border-b bg-slate-100/80 shrink-0">
         <div className="font-semibold text-xs mb-2 text-slate-700">Informações da Conta</div>
         <div className="grid grid-cols-12 gap-3 mb-3">
-          <div className="col-span-3">
-            <label className="text-[10px] text-slate-500 font-medium uppercase">Operação</label>
-            <Select
-              value={filtros.operacao}
-              onValueChange={(v) => setFiltros({ ...filtros, operacao: v })}
-            >
-              <SelectTrigger className="h-7 text-xs bg-white">
-                <SelectValue placeholder="-" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todas">Todas</SelectItem>
-                <SelectItem value="Venda">Venda</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2">
+          <div className="col-span-5">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Empresa</label>
             <Select
               value={filtros.empresa}
@@ -320,10 +400,11 @@ export default function ConsultarDuplicatas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Todas">Todas</SelectItem>
-                <SelectItem value="ISLIGHT">ISLIGHT</SelectItem>
-                <SelectItem value="SLIDE">SLIDE</SelectItem>
-                <SelectItem value="FOC">FOC</SelectItem>
-                <SelectItem value="LUCENERA">LUCENERA</SelectItem>
+                {empresas.map((e) => (
+                  <SelectItem key={e.id} value={e.nome}>
+                    {e.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -430,42 +511,19 @@ export default function ConsultarDuplicatas() {
               onChange={(e) => setFiltros({ ...filtros, boleto: e.target.value })}
             />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-8">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Pessoa</label>
-            <Select
-              value={filtros.funcionario}
-              onValueChange={(v) => setFiltros({ ...filtros, funcionario: v })}
-            >
-              <SelectTrigger className="h-7 text-xs bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Funcionario">Funcionário</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-1">
-            <Input
-              className="h-7 text-xs bg-white"
-              value={filtros.codigo}
-              onChange={(e) => setFiltros({ ...filtros, codigo: e.target.value })}
-            />
-          </div>
-          <div className="col-span-5 flex gap-2">
             <Input
               className="h-7 text-xs bg-white w-full"
-              placeholder="Buscar por pessoa..."
+              placeholder="Buscar por pessoa (múltiplos termos, sem acento)..."
               value={filtros.pessoa}
               onChange={(e) => setFiltros({ ...filtros, pessoa: e.target.value })}
             />
-            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0 bg-white">
-              <span className="text-[10px]">...</span>
-            </Button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white relative">
+      <div className="flex-1 min-h-[280px] overflow-auto bg-white relative">
         <Table className="w-full text-xs whitespace-nowrap">
           <TableHeader className="sticky top-0 bg-slate-100 z-10 shadow-sm border-b">
             <TableRow className="h-8">
@@ -530,23 +588,32 @@ export default function ConsultarDuplicatas() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </TableCell>
-                  <TableCell className="p-1 text-center border-r text-slate-500">A</TableCell>
-                  <TableCell className="p-1 text-center border-r text-slate-500">N</TableCell>
+                  <TableCell
+                    className="p-1 text-center border-r text-slate-500"
+                    title={d.tipo_operacao === 'CP' ? 'Pagar' : 'Receber'}
+                  >
+                    {d.tipo_operacao === 'CP' ? 'P' : 'R'}
+                  </TableCell>
+                  <TableCell className="p-1 text-center border-r text-slate-500" title={d.tipo}>
+                    {d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
+                  </TableCell>
                   <TableCell className="p-1 text-center border-r font-medium text-slate-700">
                     {d.status === 'Pago' ? 'P' : 'A'}
                   </TableCell>
                   <TableCell className="p-1 border-r font-mono">
                     {d.numero_documento || '-'}
                   </TableCell>
-                  <TableCell className="p-1 text-right border-r">1</TableCell>
-                  <TableCell className="p-1 text-right border-r">1</TableCell>
-                  <TableCell className="p-1 text-right border-r">0</TableCell>
-                  <TableCell className="p-1 text-right border-r">-</TableCell>
+                  <TableCell className="p-1 text-right border-r">{d.num_parcela || 1}</TableCell>
+                  <TableCell className="p-1 text-right border-r">{d.total_parcelas || 1}</TableCell>
+                  <TableCell className="p-1 text-right border-r font-mono">
+                    {getVenda(d) || '-'}
+                  </TableCell>
+                  <TableCell className="p-1 text-right border-r">{d.fatura || '-'}</TableCell>
                   <TableCell className="p-1 border-r truncate max-w-[200px] font-medium">
                     {d.nome_pagador}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r bg-teal-50/30 group-hover:bg-teal-50/50 transition-colors">
-                    {formatDate(d.created_at || d.vencimento)}
+                    {formatDate(d.emissao || d.created_at)}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r">
                     {formatDate(d.vencimento)}
@@ -628,15 +695,59 @@ export default function ConsultarDuplicatas() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
-                <TableCell colSpan={10} className="p-4 text-center text-slate-400 italic">
-                  Selecione uma duplicata para ver os detalhes da baixa
-                </TableCell>
-              </TableRow>
+              {baixadasSelecionadas.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="p-4 text-center text-slate-400 italic">
+                    {selecionadas.size === 0
+                      ? 'Selecione uma duplicata para ver os detalhes da baixa'
+                      : 'A duplicata selecionada ainda não tem baixa.'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                baixadasSelecionadas.map((d) => (
+                  <TableRow key={d.id} className="h-7">
+                    <TableCell className="p-1 font-mono">{d.numero_documento || d.nosso_numero}</TableCell>
+                    <TableCell className="p-1 text-center">{formatDate(d.data_pagamento)}</TableCell>
+                    <TableCell className="p-1 text-center">
+                      {d.data_pagamento && d.vencimento
+                        ? Math.max(0, differenceInDays(parseISO(d.data_pagamento), parseISO(d.vencimento))) || ''
+                        : ''}
+                    </TableCell>
+                    <TableCell className="p-1 text-right font-mono">{formatCurrency(d.valor)}</TableCell>
+                    <TableCell className="p-1 text-right font-mono">
+                      {formatCurrency(Number(d.juros_multa || 0))}
+                    </TableCell>
+                    <TableCell className="p-1 text-right font-mono">
+                      {formatCurrency(Number(d.desconto || 0))}
+                    </TableCell>
+                    <TableCell className="p-1 text-right font-mono">
+                      {formatCurrency(Number(d.valor_pago || 0))}
+                    </TableCell>
+                    <TableCell className="p-1">{d.forma_pagamento || '-'}</TableCell>
+                    <TableCell className="p-1">-</TableCell>
+                    <TableCell className="p-1 truncate max-w-[200px]">{d.observacao || '-'}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      <ExecutarBaixaModal
+        open={showExecutar}
+        onClose={() => setShowExecutar(false)}
+        duplicatas={data.filter((d) => selecionadas.has(d.id))}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData()
+        }}
+      />
+      <InfoDuplicataModal
+        open={showInfo}
+        onClose={() => setShowInfo(false)}
+        duplicata={data.find((d) => selecionadas.has(d.id)) || null}
+      />
     </div>
   )
 }
