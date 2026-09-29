@@ -58,7 +58,17 @@ const CONTATO_CAMPOS = 'nome, razao_social, cpf_cnpj, cnpj, cpf, endereco, numer
 
 function montarPagador(c: any, nomeFallback: string | null): PagadorCobranca | null {
   if (!c) return nomeFallback ? { nome: nomeFallback, documento: '', endereco: '', cep: '' } : null
-  const endereco = [c.endereco, c.numero, c.bairro, [c.cidade, c.estado].filter(Boolean).join('/')]
+  // ~240 contatos importados vieram com o número grudado no começo do
+  // endereço ("1400AVENIDA ...") e `numero` vazio -- separa para o endereço
+  // do boleto sair legível ("AVENIDA ... 1400").
+  let logradouro = String(c.endereco || '').trim()
+  let numero = String(c.numero || '').trim()
+  const grudado = /^(\d+)\s*([^\d\s].*)$/.exec(logradouro)
+  if (!numero && grudado) {
+    numero = grudado[1]
+    logradouro = grudado[2]
+  }
+  const endereco = [logradouro, numero, c.bairro, [c.cidade, c.estado].filter(Boolean).join('/')]
     .filter((p) => p && String(p).trim())
     .join(' ')
   return {

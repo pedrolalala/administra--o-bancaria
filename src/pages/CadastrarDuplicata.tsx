@@ -145,7 +145,12 @@ export default function CadastrarDuplicata() {
         setNf(first.numero_documento || '')
         setReferencia(first.referencia || '')
         setApropriacaoId(first.apropriacao_id || '')
-        setSituacao(first.status || 'Pendente')
+        // A situação vale para as parcelas NÃO pagas (as pagas não são
+        // alteradas) -- carrega da primeira em aberto; antes vinha da 1ª
+        // parcela e, se ela estivesse paga, salvar marcava as outras como
+        // "Pago" sem data nem valor de pagamento.
+        const primeiraAberta = data.find((b: any) => b.status !== 'Pago')
+        setSituacao(primeiraAberta?.status || 'Pendente')
         setContaBancariaId(first.conta_bancaria_id || '')
         setObservacao(first.observacao || '')
         setParcelas(
