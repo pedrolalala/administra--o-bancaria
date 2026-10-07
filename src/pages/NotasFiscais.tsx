@@ -159,7 +159,7 @@ export default function NotasFiscaisPage() {
 
     const safeName = file.name
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-zA-Z0-9._-]/g, '-')
     const prefix = formData.orcamento_id || orcamentoId || 'sem-orcamento'
     const filePath = `notas-fiscais/${prefix}/${Date.now()}-${safeName}`

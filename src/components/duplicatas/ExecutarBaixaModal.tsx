@@ -146,9 +146,7 @@ export function ExecutarBaixaModal({
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 font-medium uppercase">
-                Desconto
-              </label>
+              <label className="text-[10px] text-slate-500 font-medium uppercase">Desconto</label>
               <Input
                 type="number"
                 step="0.01"

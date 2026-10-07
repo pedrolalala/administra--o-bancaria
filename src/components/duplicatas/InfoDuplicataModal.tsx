@@ -1,9 +1,4 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface InfoDuplicataModalProps {
   open: boolean
@@ -36,12 +31,17 @@ export function InfoDuplicataModal({ open, onClose, duplicata }: InfoDuplicataMo
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Duplicata {duplicata.numero_documento || duplicata.nosso_numero}</DialogTitle>
+          <DialogTitle>
+            Duplicata {duplicata.numero_documento || duplicata.nosso_numero}
+          </DialogTitle>
         </DialogHeader>
         <div className="text-sm">
           <Row label="Pessoa" value={duplicata.nome_pagador} />
           <Row label="Empresa" value={duplicata.empresas?.nome} />
-          <Row label="Tipo" value={duplicata.tipo_operacao === 'CP' ? 'Contas a Pagar' : 'Contas a Receber'} />
+          <Row
+            label="Tipo"
+            value={duplicata.tipo_operacao === 'CP' ? 'Contas a Pagar' : 'Contas a Receber'}
+          />
           <Row label="Status" value={duplicata.status} />
           <Row label="Valor" value={formatCurrency(duplicata.valor)} />
           <Row label="Emissão" value={formatDate(duplicata.emissao)} />
@@ -57,9 +57,18 @@ export function InfoDuplicataModal({ open, onClose, duplicata }: InfoDuplicataMo
           <Row label="Nosso número" value={duplicata.nosso_numero} />
           <Row label="Forma de pagamento" value={duplicata.forma_pagamento} />
           <Row label="Data pagamento" value={formatDate(duplicata.data_pagamento)} />
-          <Row label="Valor pago" value={duplicata.valor_pago ? formatCurrency(duplicata.valor_pago) : '-'} />
-          <Row label="Juros/multa" value={duplicata.juros_multa ? formatCurrency(duplicata.juros_multa) : '-'} />
-          <Row label="Desconto" value={duplicata.desconto ? formatCurrency(duplicata.desconto) : '-'} />
+          <Row
+            label="Valor pago"
+            value={duplicata.valor_pago ? formatCurrency(duplicata.valor_pago) : '-'}
+          />
+          <Row
+            label="Juros/multa"
+            value={duplicata.juros_multa ? formatCurrency(duplicata.juros_multa) : '-'}
+          />
+          <Row
+            label="Desconto"
+            value={duplicata.desconto ? formatCurrency(duplicata.desconto) : '-'}
+          />
           <Row label="Observação" value={duplicata.observacao} />
         </div>
       </DialogContent>

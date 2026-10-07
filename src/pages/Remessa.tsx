@@ -54,7 +54,8 @@ interface ContaBancaria extends ContaCobranca {
   empresas?: { nome: string } | null
 }
 
-const CONTATO_CAMPOS = 'nome, razao_social, cpf_cnpj, cnpj, cpf, endereco, numero, bairro, cidade, estado, cep'
+const CONTATO_CAMPOS =
+  'nome, razao_social, cpf_cnpj, cnpj, cpf, endereco, numero, bairro, cidade, estado, cep'
 
 function montarPagador(c: any, nomeFallback: string | null): PagadorCobranca | null {
   if (!c) return nomeFallback ? { nome: nomeFallback, documento: '', endereco: '', cep: '' } : null
@@ -120,7 +121,11 @@ export default function RemessaPage() {
       .ilike('banco', '%bradesco%')
       .order('nome')
     if (error) {
-      toast({ variant: 'destructive', title: 'Erro ao carregar contas', description: error.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar contas',
+        description: error.message,
+      })
       return
     }
     setContas((data || []) as ContaBancaria[])
@@ -149,7 +154,11 @@ export default function RemessaPage() {
       .order('vencimento', { ascending: true })
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Erro ao carregar boletos', description: error.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar boletos',
+        description: error.message,
+      })
     } else {
       setBoletos(data || [])
     }
@@ -245,7 +254,9 @@ export default function RemessaPage() {
     const a = document.createElement('a')
     a.href = url
     // Padrão Bradesco: CBDDMM + 2 caracteres de sequência no dia.
-    a.download = `CB${format(new Date(), 'ddMM')}${String(previewSequencial ?? 1).slice(-2).padStart(2, '0')}.REM`
+    a.download = `CB${format(new Date(), 'ddMM')}${String(previewSequencial ?? 1)
+      .slice(-2)
+      .padStart(2, '0')}.REM`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -308,7 +319,11 @@ export default function RemessaPage() {
       .eq('id', conta.id)
     setSalvandoConta(false)
     if (error) {
-      toast({ variant: 'destructive', title: 'Erro ao salvar dados de cobrança', description: error.message })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar dados de cobrança',
+        description: error.message,
+      })
       return
     }
     toast({ title: 'Dados de cobrança salvos' })
@@ -330,7 +345,8 @@ export default function RemessaPage() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Gerar Remessa</h2>
         <p className="text-muted-foreground">
-          Selecione a conta de cobrança e os boletos pendentes para gerar o arquivo CNAB 400 (Bradesco).
+          Selecione a conta de cobrança e os boletos pendentes para gerar o arquivo CNAB 400
+          (Bradesco).
         </p>
       </div>
 
@@ -338,8 +354,8 @@ export default function RemessaPage() {
         <div className="flex gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <p>
-            Fluxo manual: gere a prévia, baixe o arquivo .REM e envie ao banco. Cada prévia reserva o
-            próximo número de remessa e o nosso número dos boletos. O status só muda para “Remessa
+            Fluxo manual: gere a prévia, baixe o arquivo .REM e envie ao banco. Cada prévia reserva
+            o próximo número de remessa e o nosso número dos boletos. O status só muda para “Remessa
             Enviada” após o download. O registro de fato é confirmado pelo arquivo de retorno.
           </p>
         </div>
@@ -391,7 +407,11 @@ export default function RemessaPage() {
           <Button variant="outline" onClick={abrirDadosConta} disabled={!conta} className="gap-2">
             <Landmark className="h-4 w-4" /> Dados de cobrança
           </Button>
-          <Button variant="outline" onClick={toggleSelectAll} disabled={filteredBoletos.length === 0}>
+          <Button
+            variant="outline"
+            onClick={toggleSelectAll}
+            disabled={filteredBoletos.length === 0}
+          >
             {selectedIds.length === filteredBoletos.length && filteredBoletos.length > 0
               ? 'Desmarcar Todos'
               : 'Selecionar Todos'}
@@ -464,9 +484,10 @@ export default function RemessaPage() {
                       {b.vencimento ? b.vencimento.split('-').reverse().join('/') : '-'}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                        b.valor,
-                      )}
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(b.valor)}
                     </TableCell>
                   </TableRow>
                 )

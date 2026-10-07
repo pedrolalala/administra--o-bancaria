@@ -78,7 +78,11 @@ export default function BaixarDuplicata() {
     Promise.all([
       supabase.from('empresas').select('id, nome').order('nome'),
       supabase.from('contas_bancarias').select('id, nome').order('nome'),
-      supabase.from('plano_de_contas').select('id, nome, nivel, parent_id').eq('ativo', true).order('nome'),
+      supabase
+        .from('plano_de_contas')
+        .select('id, nome, nivel, parent_id')
+        .eq('ativo', true)
+        .order('nome'),
     ]).then(([emp, contas, plano]) => {
       if (emp.data) setEmpresas(emp.data)
       if (contas.data) setContasBancarias(contas.data)
@@ -87,7 +91,10 @@ export default function BaixarDuplicata() {
   }, [])
 
   const fetchDuplicatas = async () => {
-    const { data, error } = await supabase.from('boletos').select('*').eq('tipo_operacao', filtroTipo)
+    const { data, error } = await supabase
+      .from('boletos')
+      .select('*')
+      .eq('tipo_operacao', filtroTipo)
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' })
       return
@@ -123,15 +130,9 @@ export default function BaixarDuplicata() {
       if (filtroTipoSituacao === 'Aberto' && d.status === 'Pago') return false
       if (filtroTipoSituacao === 'Pago' && d.status !== 'Pago') return false
       if (filtroEmpresa && d.empresa_id !== filtroEmpresa) return false
-      if (
-        filtroBoleto &&
-        !d.nosso_numero?.toLowerCase().includes(filtroBoleto.toLowerCase())
-      )
+      if (filtroBoleto && !d.nosso_numero?.toLowerCase().includes(filtroBoleto.toLowerCase()))
         return false
-      if (
-        filtroFatura &&
-        !d.numero_documento?.toLowerCase().includes(filtroFatura.toLowerCase())
-      )
+      if (filtroFatura && !d.numero_documento?.toLowerCase().includes(filtroFatura.toLowerCase()))
         return false
       return true
     })
@@ -545,7 +546,9 @@ export default function BaixarDuplicata() {
                     <TableCell className="p-1 font-mono">
                       {b.numero_documento || b.nosso_numero}
                     </TableCell>
-                    <TableCell className="p-1 text-center">{formatDate(b.data_pagamento)}</TableCell>
+                    <TableCell className="p-1 text-center">
+                      {formatDate(b.data_pagamento)}
+                    </TableCell>
                     <TableCell className="p-1 text-center">{getAtraso(b.vencimento)}</TableCell>
                     <TableCell className="p-1 text-right font-mono">
                       {formatCurrency(b.valor)}

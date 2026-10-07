@@ -94,7 +94,11 @@ export default function CadastrarDuplicata() {
       supabase.from('empresas').select('id, nome').order('nome'),
       supabase.from('usuarios').select('id, nome').order('nome'),
       supabase.from('contas_bancarias').select('id, nome').order('nome'),
-      supabase.from('plano_de_contas').select('id, nome, nivel, parent_id').eq('ativo', true).order('nome'),
+      supabase
+        .from('plano_de_contas')
+        .select('id, nome, nivel, parent_id')
+        .eq('ativo', true)
+        .order('nome'),
     ]).then(([emp, usr, contas, plano]) => {
       if (emp.data) setEmpresas(emp.data)
       if (usr.data) setUsuarios(usr.data)
@@ -239,9 +243,7 @@ export default function CadastrarDuplicata() {
   }
 
   const updateParcela = (parcela: number, field: keyof ParcelaLinha, value: string) => {
-    setParcelas((prev) =>
-      prev.map((p) => (p.parcela === parcela ? { ...p, [field]: value } : p)),
-    )
+    setParcelas((prev) => prev.map((p) => (p.parcela === parcela ? { ...p, [field]: value } : p)))
   }
 
   const valorTotal = parcelas.reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0)
@@ -318,7 +320,10 @@ export default function CadastrarDuplicata() {
           linha_digitavel: p.linhaDigitavel || null,
         }
         const { error } = p.id
-          ? await supabase.from('boletos').update(linha as any).eq('id', p.id)
+          ? await supabase
+              .from('boletos')
+              .update(linha as any)
+              .eq('id', p.id)
           : await supabase.from('boletos').insert({
               ...linha,
               nosso_numero: `DUP${Date.now()}${p.parcela}`,

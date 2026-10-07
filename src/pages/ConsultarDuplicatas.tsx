@@ -133,9 +133,7 @@ export default function ConsultarDuplicatas() {
             .normalize('NFD')
             .replace(/\p{Diacritic}/gu, '')
             .toLowerCase()
-        const terms = normalize(filtros.pessoa.trim())
-          .split(/\s+/)
-          .filter(Boolean)
+        const terms = normalize(filtros.pessoa.trim()).split(/\s+/).filter(Boolean)
         const haystack = normalize(d.nome_pagador || '')
         if (!terms.every((t) => haystack.includes(t))) return false
       }
@@ -144,11 +142,16 @@ export default function ConsultarDuplicatas() {
         !d.numero_documento?.toLowerCase().includes(filtros.duplicata.toLowerCase())
       )
         return false
+      // SPEC-165: Venda / Fatura / Boleto antes não filtravam nada.
       const contem = (valor: any, termo: string) =>
         String(valor || '')
           .toLowerCase()
           .includes(termo.trim().toLowerCase())
-      if (filtros.venda && !contem(getVenda(d), filtros.venda) && !contem(getOrcamento(d)?.numero, filtros.venda))
+      if (
+        filtros.venda &&
+        !contem(getVenda(d), filtros.venda) &&
+        !contem(getOrcamento(d)?.numero, filtros.venda)
+      )
         return false
       if (filtros.fatura && !contem(d.fatura, filtros.fatura)) return false
       if (
@@ -165,8 +168,7 @@ export default function ConsultarDuplicatas() {
 
       // Único "Tipo data" disponível hoje é Vencimento -- filtra por
       // d.vencimento quando início/final estiverem preenchidos.
-      if (filtros.dataInicio && (!d.vencimento || d.vencimento < filtros.dataInicio))
-        return false
+      if (filtros.dataInicio && (!d.vencimento || d.vencimento < filtros.dataInicio)) return false
       if (filtros.dataFinal && (!d.vencimento || d.vencimento > filtros.dataFinal)) return false
 
       return true
@@ -191,6 +193,7 @@ export default function ConsultarDuplicatas() {
     )
   }, [filteredData])
 
+  // SPEC-165: painel "Baixado" mostra a baixa das duplicatas selecionadas.
   const baixadasSelecionadas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
 
   const formatCurrency = (val: number) =>
@@ -234,6 +237,7 @@ export default function ConsultarDuplicatas() {
       })
       return
     }
+    // SPEC-165: não baixa de novo o que já está pago.
     const jaPagas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
     if (jaPagas.length > 0) {
       toast({
@@ -276,7 +280,8 @@ export default function ConsultarDuplicatas() {
     if (!duplicata?.conta_grupo_id) {
       toast({
         title: 'Duplicata sem grupo de conta',
-        description: 'Este registro foi criado antes da SPEC-073 e não tem edição estruturada disponível ainda.',
+        description:
+          'Este registro foi criado antes da SPEC-073 e não tem edição estruturada disponível ainda.',
         variant: 'destructive',
       })
       return
@@ -284,12 +289,15 @@ export default function ConsultarDuplicatas() {
     navigate(`/cadastrar-duplicata?id=${duplicata.conta_grupo_id}`)
   }
 
-  // "Executar", "Acordo" e "Info": sem especificacao clara do que devem
-  // fazer (nao ha equivalente identificavel no restante do sistema nem na
-  // spec fornecida) -- sinalizados como pendentes em vez de adivinhar
-  // regra de negocio nova (SPEC-073, secao "Pendências").
+  // "Acordo": sem especificacao clara do que deve fazer ainda (nao ha
+  // equivalente identificavel no restante do sistema nem na spec
+  // fornecida) -- sinalizado como pendente em vez de adivinhar regra de
+  // negocio nova (SPEC-073, secao "Pendências").
   const handleNaoImplementado = (nome: string) => {
-    toast({ title: `"${nome}" ainda não implementado`, description: 'Aguardando definição do fluxo.' })
+    toast({
+      title: `"${nome}" ainda não implementado`,
+      description: 'Aguardando definição do fluxo.',
+    })
   }
 
   return (
@@ -528,9 +536,15 @@ export default function ConsultarDuplicatas() {
           <TableHeader className="sticky top-0 bg-slate-100 z-10 shadow-sm border-b">
             <TableRow className="h-8">
               <TableHead className="w-8 p-1 text-center font-medium">X</TableHead>
-              <TableHead className="w-8 p-1 text-center font-medium">T</TableHead>
-              <TableHead className="w-8 p-1 text-center font-medium">O</TableHead>
-              <TableHead className="w-8 p-1 text-center font-medium">A</TableHead>
+              <TableHead className="w-8 p-1 text-center font-medium" title="Receber / Pagar">
+                T
+              </TableHead>
+              <TableHead className="w-8 p-1 text-center font-medium" title="Normal / Nota Fiscal">
+                O
+              </TableHead>
+              <TableHead className="w-8 p-1 text-center font-medium" title="Aberto / Pago">
+                A
+              </TableHead>
               <TableHead className="p-1 font-medium">Duplicata</TableHead>
               <TableHead className="p-1 text-right font-medium">Par.</TableHead>
               <TableHead className="p-1 text-right font-medium">Tot.</TableHead>
@@ -706,14 +720,23 @@ export default function ConsultarDuplicatas() {
               ) : (
                 baixadasSelecionadas.map((d) => (
                   <TableRow key={d.id} className="h-7">
-                    <TableCell className="p-1 font-mono">{d.numero_documento || d.nosso_numero}</TableCell>
-                    <TableCell className="p-1 text-center">{formatDate(d.data_pagamento)}</TableCell>
+                    <TableCell className="p-1 font-mono">
+                      {d.numero_documento || d.nosso_numero}
+                    </TableCell>
+                    <TableCell className="p-1 text-center">
+                      {formatDate(d.data_pagamento)}
+                    </TableCell>
                     <TableCell className="p-1 text-center">
                       {d.data_pagamento && d.vencimento
-                        ? Math.max(0, differenceInDays(parseISO(d.data_pagamento), parseISO(d.vencimento))) || ''
+                        ? Math.max(
+                            0,
+                            differenceInDays(parseISO(d.data_pagamento), parseISO(d.vencimento)),
+                          ) || ''
                         : ''}
                     </TableCell>
-                    <TableCell className="p-1 text-right font-mono">{formatCurrency(d.valor)}</TableCell>
+                    <TableCell className="p-1 text-right font-mono">
+                      {formatCurrency(d.valor)}
+                    </TableCell>
                     <TableCell className="p-1 text-right font-mono">
                       {formatCurrency(Number(d.juros_multa || 0))}
                     </TableCell>
@@ -725,7 +748,9 @@ export default function ConsultarDuplicatas() {
                     </TableCell>
                     <TableCell className="p-1">{d.forma_pagamento || '-'}</TableCell>
                     <TableCell className="p-1">-</TableCell>
-                    <TableCell className="p-1 truncate max-w-[200px]">{d.observacao || '-'}</TableCell>
+                    <TableCell className="p-1 truncate max-w-[200px]">
+                      {d.observacao || '-'}
+                    </TableCell>
                   </TableRow>
                 ))
               )}

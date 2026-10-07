@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { SystemSwitcher } from '@/components/SystemSwitcher'
 
 export default function Layout() {
   const { user, signOut } = useAuth()
@@ -12,6 +13,7 @@ export default function Layout() {
   const pathname = location.pathname
 
   const navLinks = [
+    { name: 'Notas Fiscais', path: '/notas-fiscais' },
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
@@ -94,6 +96,7 @@ export default function Layout() {
           <span>Sistema Operacional</span>
         </div>
       </footer>
+      <SystemSwitcher currentSlug="financeiro" />
     </div>
   )
 }

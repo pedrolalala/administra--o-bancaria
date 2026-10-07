@@ -455,7 +455,7 @@ export default function BoletosPage() {
                 </TableRow>
               ) : (
                 filteredBoletos.map((b) => (
-                  <TableRow key={b.id} onDoubleClick={() => openEdit(b)} className="cursor-pointer">
+                  <TableRow key={b.id}>
                     <TableCell className="font-mono text-xs">{b.nosso_numero}</TableCell>
                     <TableCell className="text-xs">{b.numero_documento || '-'}</TableCell>
                     <TableCell className="font-medium truncate max-w-[150px]">
@@ -510,7 +510,11 @@ export default function BoletosPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-center text-xs text-slate-500">
-                      {b.perfil === 'ribeirao' ? 'Ribeirão' : b.perfil === 'sao_paulo' ? 'São Paulo' : '-'}
+                      {b.perfil === 'ribeirao'
+                        ? 'Ribeirão'
+                        : b.perfil === 'sao_paulo'
+                          ? 'São Paulo'
+                          : '-'}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge

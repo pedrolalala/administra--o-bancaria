@@ -190,8 +190,7 @@ export default function RetornoBoletos() {
       const registros = cnabData.records.map((r) => ({
         nosso_numero: r.nossoNumero,
         valor_recebido: r.valorRecebido ?? 0,
-        data_pagamento:
-          r.dataCredito || r.dataOcorrencia || new Date().toISOString().split('T')[0],
+        data_pagamento: r.dataCredito || r.dataOcorrencia || new Date().toISOString().split('T')[0],
         ocorrencia_codigo: r.ocorrencia,
         motivo: r.motivos || undefined,
       }))
