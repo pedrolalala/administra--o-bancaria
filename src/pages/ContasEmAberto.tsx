@@ -19,8 +19,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { differenceInDays, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight, Wallet, AlertTriangle, Clock, TrendingDown } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
+  AlertTriangle,
+  Clock,
+  TrendingDown,
+  FileSpreadsheet,
+} from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { exportarContasExcel } from '@/lib/exportar-contas-excel'
 
 // SPEC-117: universo real de contas a pagar/receber "em aberto" (transacoes
 // + negociacoes + empresas/contatos/plano_de_contas). Diferente de
@@ -71,6 +80,7 @@ export default function ContasEmAberto() {
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
+  const [exportando, setExportando] = useState(false)
 
   const [filtros, setFiltros] = useState({
     tipo: 'Pagar' as 'Pagar' | 'Receber',
@@ -290,6 +300,22 @@ export default function ContasEmAberto() {
   const totalPaginas = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE_TABELA))
   const pageData = filteredData.slice((pagina - 1) * PAGE_SIZE_TABELA, pagina * PAGE_SIZE_TABELA)
 
+  // SPEC-210: exporta todas as linhas do filtro atual (todas as páginas), com as mesmas colunas da tabela.
+  const handleExportar = async () => {
+    setExportando(true)
+    try {
+      await exportarContasExcel(filtros.tipo, filteredData)
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao exportar para Excel',
+        description: err?.message ?? String(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setExportando(false)
+    }
+  }
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
@@ -329,9 +355,25 @@ export default function ContasEmAberto() {
             </button>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
-          {loading ? 'Carregando...' : 'Atualizar'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportar}
+            disabled={loading || exportando || filteredData.length === 0}
+            title={
+              filteredData.length === 0
+                ? 'Nada para exportar'
+                : `Exportar ${filteredData.length} registro(s) para Excel`
+            }
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-1" />
+            {exportando ? 'Exportando...' : 'Exportar Excel'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+            {loading ? 'Carregando...' : 'Atualizar'}
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-y-auto flex-1">
