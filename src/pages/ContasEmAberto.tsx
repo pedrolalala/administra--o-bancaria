@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { exportarContasExcel } from '@/lib/exportar-contas-excel'
+import { PagamentosAntecipadosDialog } from '@/components/PagamentosAntecipadosDialog'
 
 // SPEC-117: universo real de contas a pagar/receber "em aberto" (transacoes
 // + negociacoes + empresas/contatos/plano_de_contas). Diferente de
@@ -81,6 +82,8 @@ export default function ContasEmAberto() {
   const [loading, setLoading] = useState(true)
   const [pagina, setPagina] = useState(1)
   const [exportando, setExportando] = useState(false)
+  // SPEC-215: pagamento antecipado ao fornecedor (vinculado depois na Entrada de Nota Fiscal).
+  const [antecipadosAberto, setAntecipadosAberto] = useState(false)
 
   const [filtros, setFiltros] = useState({
     tipo: 'Pagar' as 'Pagar' | 'Receber',
@@ -356,6 +359,12 @@ export default function ContasEmAberto() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {filtros.tipo === 'Pagar' && (
+            <Button variant="outline" size="sm" onClick={() => setAntecipadosAberto(true)}>
+              <Wallet className="w-4 h-4 mr-1" />
+              Pagamentos antecipados
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -695,6 +704,12 @@ export default function ContasEmAberto() {
           </span>
         </div>
       </div>
+
+      <PagamentosAntecipadosDialog
+        open={antecipadosAberto}
+        onOpenChange={setAntecipadosAberto}
+        empresas={empresas}
+      />
     </div>
   )
 }

@@ -179,3 +179,14 @@ trigger. Ver `supabase/db/migrations/20260917_153_notas_fiscais_parcial_multipag
 - `AuthProvider` chama `consumeCodeFromUrl('financeiro')` antes de redirecionar para login.
 - A migration central `20260708_030_spec007_sso_cross_system` e as Edge Functions `generate-cross-system-code`/`exchange-cross-system-code` estão publicadas no Supabase remoto desde 2026-07-07; falta homologação com usuário real.
 - Não aceitar `access_token`/`refresh_token` em query string; somente `sso_code`.
+
+## SPEC-215 — Pagamento antecipado ao fornecedor (migration central 20261021_229)
+
+- Contas em Aberto › Pagar › botão "Pagamentos antecipados": lista `vw_pagamentos_antecipados` (saldo, notas
+  vinculadas) e lança/cancela pelas RPCs `lancar_pagamento_antecipado` / `cancelar_pagamento_antecipado`
+  (exigem acesso ao sistema `financeiro` ou `dashboard-financeiro`; cancelar só sem vínculo com nota).
+- Tabelas `pagamentos_antecipados` e `pagamento_antecipado_vinculos` não aceitam escrita direta (só as RPCs).
+- O vínculo com a nota é feito na Entrada de Nota Fiscal do sistema Compras (`registrar_entrada_nota_compra`).
+- No Dashboard Financeiro o pagamento aparece pago em DESPESAS › PAGAMENTO ANTECIPADO
+  (`vw_contas_pagar_pedidos_compra`, origem `pagamento_antecipado`). Esta tela (Contas em Aberto) continua lendo
+  só `transacoes` (Connect).
