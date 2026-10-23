@@ -10,6 +10,14 @@ Se uma demanda exigir estrutura de banco que não aparece neste contexto, docume
 
 Sistema financeiro para boletos, duplicatas, contas a pagar/receber, remessa e retorno bancário.
 
+**SPEC-225 (23/10/2026): este código gera 2 sistemas.** `VITE_MODO_SISTEMA` (`.env.pagar` / `.env.receber`,
+`npm run build:pagar|build:receber`) define o modo: **Contas a Pagar** (`contas-pagar-lucenera`, `tipo_operacao = 'CP'`,
+`transacoes.tipo = 'despesa'`, pagamentos antecipados) e **Contas a Receber** (`contas-receber-lucenera`, `'CR'`,
+`'receita'`, boletos/remessa/retorno Bradesco). Constantes em `src/lib/modo-sistema.ts`; toda consulta filtra pelo
+tipo do modo. Build sem modo = página de escolha (`adm-bancaria-lucenera`). Permissão de dados continua
+`financeiro` (RLS, `hub_pode_executar`); SSO do Hub usa o slug do card (`contas-pagar` / `contas-receber`). Os 3
+slugs têm acesso espelhado pelo trigger `trg_espelhar_acesso_financeiro` (migration 239).
+
 **SPEC-153 (2026-09-17): nota fiscal saiu deste sistema.** A rota `/notas-fiscais`
 (`src/pages/NotasFiscais.tsx`) foi removida do roteamento (`App.tsx`) e do menu
 (`Layout.tsx`) — o arquivo continua no disco sem uso, não é mais alcançável.
