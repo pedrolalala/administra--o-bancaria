@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { EH_PAGAR, TIPO_ROTULO, TIPO_TRANSACAO } from '@/lib/modo-sistema'
 import {
   Table,
   TableBody,
@@ -86,7 +87,6 @@ export default function ContasEmAberto() {
   const [antecipadosAberto, setAntecipadosAberto] = useState(false)
 
   const [filtros, setFiltros] = useState({
-    tipo: 'Pagar' as 'Pagar' | 'Receber',
     empresa: 'Todas',
     perfil: 'todos',
     situacao: 'Todos',
@@ -125,6 +125,8 @@ export default function ContasEmAberto() {
           `,
           )
           .eq('status_pago', 0)
+          // SPEC-225: cada sistema só lê o próprio tipo (despesa ou receita).
+          .eq('tipo', TIPO_TRANSACAO)
           .order('id', { ascending: true })
           .range(from, from + PAGE_SIZE_FETCH - 1)
 
@@ -216,10 +218,7 @@ export default function ContasEmAberto() {
       .replace(/\p{Diacritic}/gu, '')
       .toLowerCase()
 
-  // Todos os filtros MENOS o toggle Pagar/Receber -- usado pelas duas
-  // colunas do aging e pelos dois KPIs de topo (Total a Pagar / Total a
-  // Receber), que precisam mostrar os dois lados juntos independente do
-  // toggle selecionado.
+  // SPEC-225: o tipo já vem filtrado no banco (um sistema por tipo).
   const dadosBase = useMemo(() => {
     return processedData.filter((d) => {
       if (filtros.empresa !== 'Todas' && d.empresa !== filtros.empresa) return false
@@ -242,32 +241,17 @@ export default function ContasEmAberto() {
     })
   }, [processedData, filtros])
 
-  // Recorte pelo tipo (Pagar/Receber) selecionado no topo -- alimenta a
-  // tabela detalhada.
-  const filteredData = useMemo(
-    () => dadosBase.filter((d) => d.tipo === filtros.tipo),
-    [dadosBase, filtros.tipo],
-  )
+  const filteredData = dadosBase
 
   const kpis = useMemo(() => {
-    const totalPagar = dadosBase
-      .filter((d) => d.tipo === 'Pagar')
-      .reduce((acc, d) => acc + d.valor, 0)
-    const totalReceber = dadosBase
-      .filter((d) => d.tipo === 'Receber')
-      .reduce((acc, d) => acc + d.valor, 0)
+    const total = filteredData.reduce((acc, d) => acc + d.valor, 0)
     const vencido = filteredData
       .filter((d) => d.diasAtraso && d.diasAtraso > 0)
       .reduce((acc, d) => acc + d.valor, 0)
-    const aVencer = filteredData
-      .filter((d) => !(d.diasAtraso && d.diasAtraso > 0))
-      .reduce((acc, d) => acc + d.valor, 0)
-    return { totalPagar, totalReceber, vencido, aVencer }
-  }, [dadosBase, filteredData])
+    return { total, vencido, aVencer: total - vencido }
+  }, [filteredData])
 
-  // Aging por faixa de atraso, separado por Pagar/Receber -- sobre
-  // dadosBase (respeita todos os filtros exceto o toggle de tipo, ja que as
-  // duas colunas precisam aparecer juntas).
+  // Aging por faixa de atraso.
   const aging = useMemo(() => {
     const faixas = [
       { label: '0-30 dias', min: 1, max: 30 },
@@ -276,25 +260,16 @@ export default function ContasEmAberto() {
       { label: '+365 dias', min: 366, max: Infinity },
     ]
     return faixas.map((faixa) => {
-      const doFaixa = (tipo: 'Pagar' | 'Receber') =>
-        dadosBase.filter(
-          (d) =>
-            d.tipo === tipo &&
-            d.diasAtraso !== null &&
-            d.diasAtraso >= faixa.min &&
-            d.diasAtraso <= faixa.max,
-        )
-      const pagar = doFaixa('Pagar')
-      const receber = doFaixa('Receber')
+      const doFaixa = filteredData.filter(
+        (d) => d.diasAtraso !== null && d.diasAtraso >= faixa.min && d.diasAtraso <= faixa.max,
+      )
       return {
         label: faixa.label,
-        qtdPagar: pagar.length,
-        valorPagar: pagar.reduce((acc, d) => acc + d.valor, 0),
-        qtdReceber: receber.length,
-        valorReceber: receber.reduce((acc, d) => acc + d.valor, 0),
+        qtd: doFaixa.length,
+        valor: doFaixa.reduce((acc, d) => acc + d.valor, 0),
       }
     })
-  }, [dadosBase])
+  }, [filteredData])
 
   useEffect(() => {
     setPagina(1)
@@ -307,7 +282,7 @@ export default function ContasEmAberto() {
   const handleExportar = async () => {
     setExportando(true)
     try {
-      await exportarContasExcel(filtros.tipo, filteredData)
+      await exportarContasExcel(TIPO_ROTULO, filteredData)
     } catch (err: any) {
       toast({
         title: 'Erro ao exportar para Excel',
@@ -333,33 +308,9 @@ export default function ContasEmAberto() {
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold text-slate-800">Contas em Aberto</h1>
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setFiltros({ ...filtros, tipo: 'Pagar' })}
-              className={
-                filtros.tipo === 'Pagar'
-                  ? 'px-3 py-1.5 bg-primary text-primary-foreground'
-                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50'
-              }
-            >
-              Pagar
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltros({ ...filtros, tipo: 'Receber' })}
-              className={
-                filtros.tipo === 'Receber'
-                  ? 'px-3 py-1.5 bg-primary text-primary-foreground border-l border-slate-200'
-                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 border-l border-slate-200'
-              }
-            >
-              Receber
-            </button>
-          </div>
         </div>
         <div className="flex items-center gap-2">
-          {filtros.tipo === 'Pagar' && (
+          {EH_PAGAR && (
             <Button variant="outline" size="sm" onClick={() => setAntecipadosAberto(true)}>
               <Wallet className="w-4 h-4 mr-1" />
               Pagamentos antecipados
@@ -387,37 +338,28 @@ export default function ContasEmAberto() {
 
       <div className="overflow-y-auto flex-1">
         {/* KPIs */}
-        <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardTitle className="text-xs font-medium text-muted-foreground">
-                Total a Pagar (aberto)
+                Total a {TIPO_ROTULO} (aberto)
               </CardTitle>
-              <Wallet className="h-4 w-4 text-orange-500" />
+              <Wallet className={EH_PAGAR ? 'h-4 w-4 text-orange-500' : 'h-4 w-4 text-sky-500'} />
             </CardHeader>
             <CardContent className="px-3 pb-3">
-              <div className="text-lg font-bold text-orange-700">
-                {formatCurrency(kpis.totalPagar)}
+              <div
+                className={
+                  EH_PAGAR ? 'text-lg font-bold text-orange-700' : 'text-lg font-bold text-sky-700'
+                }
+              >
+                {formatCurrency(kpis.total)}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardTitle className="text-xs font-medium text-muted-foreground">
-                Total a Receber (aberto)
-              </CardTitle>
-              <Wallet className="h-4 w-4 text-sky-500" />
-            </CardHeader>
-            <CardContent className="px-3 pb-3">
-              <div className="text-lg font-bold text-sky-700">
-                {formatCurrency(kpis.totalReceber)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
-                Vencido ({filtros.tipo})
+                Vencido
               </CardTitle>
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </CardHeader>
@@ -428,7 +370,7 @@ export default function ContasEmAberto() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardTitle className="text-xs font-medium text-muted-foreground">
-                A Vencer ({filtros.tipo})
+                A Vencer
               </CardTitle>
               <Clock className="h-4 w-4 text-emerald-500" />
             </CardHeader>
@@ -453,23 +395,23 @@ export default function ContasEmAberto() {
               <TableHeader>
                 <TableRow className="h-7">
                   <TableHead className="p-1">Faixa</TableHead>
-                  <TableHead className="p-1 text-right">Qtd. Pagar</TableHead>
-                  <TableHead className="p-1 text-right">Valor Pagar</TableHead>
-                  <TableHead className="p-1 text-right">Qtd. Receber</TableHead>
-                  <TableHead className="p-1 text-right">Valor Receber</TableHead>
+                  <TableHead className="p-1 text-right">Qtd.</TableHead>
+                  <TableHead className="p-1 text-right">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {aging.map((faixa) => (
                   <TableRow key={faixa.label} className="h-7">
                     <TableCell className="p-1 font-medium">{faixa.label}</TableCell>
-                    <TableCell className="p-1 text-right">{faixa.qtdPagar}</TableCell>
-                    <TableCell className="p-1 text-right font-mono text-orange-700">
-                      {formatCurrency(faixa.valorPagar)}
-                    </TableCell>
-                    <TableCell className="p-1 text-right">{faixa.qtdReceber}</TableCell>
-                    <TableCell className="p-1 text-right font-mono text-sky-700">
-                      {formatCurrency(faixa.valorReceber)}
+                    <TableCell className="p-1 text-right">{faixa.qtd}</TableCell>
+                    <TableCell
+                      className={
+                        EH_PAGAR
+                          ? 'p-1 text-right font-mono text-orange-700'
+                          : 'p-1 text-right font-mono text-sky-700'
+                      }
+                    >
+                      {formatCurrency(faixa.valor)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -688,20 +630,12 @@ export default function ContasEmAberto() {
           </div>
           <div className="flex gap-2 items-center">
             <span className="text-slate-500 uppercase tracking-wider">
-              Aberto ({filtros.tipo}):
+              Aberto ({TIPO_ROTULO}):
             </span>
             <span className="bg-white px-2 py-0.5 rounded shadow-sm border">
               {formatCurrency(kpis.vencido + kpis.aVencer)}
             </span>
           </div>
-        </div>
-        <div className="flex gap-2 items-center text-sm font-bold">
-          <span className="text-slate-500 uppercase text-[11px] tracking-wider">
-            Pagar + Receber (aberto):
-          </span>
-          <span className="text-primary">
-            {formatCurrency(kpis.totalPagar + kpis.totalReceber)}
-          </span>
         </div>
       </div>
 

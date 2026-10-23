@@ -31,6 +31,7 @@ import {
 import { Link2, Upload, FileText, CheckCircle2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
+import { NOME_SISTEMA, TIPO_OPERACAO } from '@/lib/modo-sistema'
 
 export default function NotasFiscaisPage() {
   const { toast } = useToast()
@@ -56,7 +57,7 @@ export default function NotasFiscaisPage() {
     // nota fiscal registrada era de Contas a Pagar ou a Receber, nem qual
     // perfil (Ribeirao/Sao Paulo) -- mesma convencao ja usada em
     // boletos.tipo_operacao/perfil.
-    tipo_operacao: 'CR',
+    tipo_operacao: TIPO_OPERACAO,
     perfil: '',
   })
 
@@ -125,6 +126,8 @@ export default function NotasFiscaisPage() {
         )
       `)
       .order('created_at', { ascending: false })
+    // SPEC-225: cada sistema só vê as notas do próprio tipo.
+    query = query.eq('tipo_operacao', TIPO_OPERACAO)
 
     if (orcamentoId) {
       query = query.eq('orcamento_id', orcamentoId)
@@ -143,6 +146,7 @@ export default function NotasFiscaisPage() {
         'id, nosso_numero, numero_documento, nome_pagador, valor, vencimento, orcamento_id, status',
       )
       .eq('tipo', 'Nota Fiscal')
+      .eq('tipo_operacao', TIPO_OPERACAO)
       .order('vencimento', { ascending: false })
 
     if (orcamentoId) {
@@ -189,7 +193,7 @@ export default function NotasFiscaisPage() {
         orcamento_id: formData.orcamento_id || orcamentoId || null,
         boleto_id: formData.boleto_id || null,
         arquivo_url: arquivoUrl,
-        tipo_operacao: formData.tipo_operacao,
+        tipo_operacao: TIPO_OPERACAO,
         perfil: formData.perfil || null,
       } as any
 
@@ -207,7 +211,7 @@ export default function NotasFiscaisPage() {
         orcamento_id: orcamentoId || '',
         boleto_id: '',
         arquivo: null,
-        tipo_operacao: 'CR',
+        tipo_operacao: TIPO_OPERACAO,
         perfil: '',
       })
       fetchNotas()
@@ -360,18 +364,7 @@ export default function NotasFiscaisPage() {
             <Label>
               Tipo <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={formData.tipo_operacao}
-              onValueChange={(v) => setFormData({ ...formData, tipo_operacao: v })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CR">Contas a Receber</SelectItem>
-                <SelectItem value="CP">Contas a Pagar</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input value={NOME_SISTEMA} readOnly disabled />
           </div>
           <div className="space-y-2">
             <Label>Perfil</Label>

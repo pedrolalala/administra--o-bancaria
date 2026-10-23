@@ -5,6 +5,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import Layout from './components/Layout'
+import { EH_PAGAR, MODO, NOME_SISTEMA } from '@/lib/modo-sistema'
 
 // SPEC-123: code-splitting por rota (mesmo padrão já em produção no RH,
 // dashboard-rh-lucenera-5fe9c/src/App.tsx).
@@ -19,6 +20,7 @@ const CadastrarDuplicata = lazy(() => import('./pages/CadastrarDuplicata'))
 const RetornoBoletos = lazy(() => import('./pages/RetornoBoletos'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Login = lazy(() => import('./pages/Login'))
+const EscolhaSistema = lazy(() => import('./pages/EscolhaSistema'))
 
 const LoadingFallback = () => (
   <div className="h-screen w-screen flex items-center justify-center">
@@ -37,8 +39,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         <div className="max-w-sm w-full text-center space-y-3">
           <h1 className="text-lg font-semibold">Acesso negado</h1>
           <p className="text-sm text-muted-foreground">
-            Sua conta não tem permissão para acessar a Administração Bancária. Fale com um
-            administrador se acredita que isso é um engano.
+            Sua conta não tem permissão para acessar {NOME_SISTEMA}. Fale com um administrador
+            se acredita que isso é um engano.
           </p>
         </div>
       </div>
@@ -48,6 +50,16 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 }
 
 const AppRoutes = () => {
+  // SPEC-225: build sem modo = endereço antigo, só a página de escolha.
+  if (!MODO) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="*" element={<EscolhaSistema />} />
+        </Routes>
+      </Suspense>
+    )
+  }
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
@@ -64,12 +76,22 @@ const AppRoutes = () => {
           <Route path="/contas-em-aberto" element={<ContasEmAberto />} />
           <Route path="/baixar-duplicata" element={<BaixarDuplicata />} />
           <Route path="/cadastrar-duplicata" element={<CadastrarDuplicata />} />
-          <Route path="/retorno-boletos" element={<RetornoBoletos />} />
-          <Route path="/antigo-retorno" element={<Index />} />
-          <Route path="/boletos" element={<BoletosPage />} />
-          <Route path="/remessa" element={<RemessaPage />} />
+          {/* SPEC-225: cobrança Bradesco só existe em Contas a Receber. */}
+          {!EH_PAGAR && (
+            <>
+              <Route path="/retorno-boletos" element={<RetornoBoletos />} />
+              <Route path="/antigo-retorno" element={<Index />} />
+              <Route path="/boletos" element={<BoletosPage />} />
+              <Route path="/remessa" element={<RemessaPage />} />
+            </>
+          )}
           <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
         </Route>
+        {/* tela que não pertence a este sistema volta para o início */}
+        {EH_PAGAR &&
+          ['/retorno-boletos', '/antigo-retorno', '/boletos', '/remessa'].map((p) => (
+            <Route key={p} path={p} element={<Navigate to="/duplicatas" replace />} />
+          ))}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

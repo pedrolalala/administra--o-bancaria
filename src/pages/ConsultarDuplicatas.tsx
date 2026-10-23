@@ -23,6 +23,7 @@ import { Pencil, Search, Play, Handshake, Download, Info } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
+import { NOME_SISTEMA, TIPO_OPERACAO } from '@/lib/modo-sistema'
 
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
@@ -35,9 +36,6 @@ export default function ConsultarDuplicatas() {
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   const [filtros, setFiltros] = useState({
-    // SPEC-165: abre em Receber -- boletos quase não tem CP; as contas a
-    // pagar reais (Connect) estão em "Contas em Aberto".
-    tipo: 'Receber',
     // Achado 2026-08-20: filtro de empresa vinha travado em 'ISLIGHT' por
     // padrão -- qualquer duplicata de outra empresa (FOCO, SLIDE, LUCENERA)
     // ficava invisível na primeira tela ("Nenhum registro encontrado"),
@@ -72,6 +70,8 @@ export default function ConsultarDuplicatas() {
       const { data: page, error } = await (supabase as any)
         .from('boletos')
         .select('*, empresas (nome), orcamentos (numero, numero_venda)')
+        // SPEC-225: cada sistema só lê o próprio tipo (CP ou CR).
+        .eq('tipo_operacao', TIPO_OPERACAO)
         .order('vencimento', { ascending: true })
         .range(from, from + PAGE - 1)
       if (error) {
@@ -99,14 +99,8 @@ export default function ConsultarDuplicatas() {
   const getVenda = (d: any) => getOrcamento(d)?.numero_venda || d.venda || ''
 
   const filteredData = useMemo(() => {
-    // "Tipo" (Pagar/Receber) só existia como campo visual até agora — não
-    // filtrava nada de verdade. boletos.tipo_operacao é a coluna real:
-    // 'CR' = Contas a Receber (todos os 21 registros hoje), 'CP' = Contas
-    // a Pagar (nenhum registro ainda — a tela mostra vazio corretamente
-    // até existir dado de CP importado/lançado).
-    const tipoOperacaoAlvo = filtros.tipo === 'Pagar' ? 'CP' : 'CR'
     return data.filter((d) => {
-      if (d.tipo_operacao !== tipoOperacaoAlvo) return false
+      if (d.tipo_operacao !== TIPO_OPERACAO) return false
       if (filtros.tipoSituacao !== 'Todos') {
         // Achado 2026-08-20: RPC aprovar_orcamento_financeiro cria todo
         // boleto novo com status='pendente_registro' (26 dos 44 boletos
@@ -304,37 +298,7 @@ export default function ConsultarDuplicatas() {
     <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-y-auto text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-slate-800">
-            Contas a {filtros.tipo === 'Pagar' ? 'Pagar' : 'Receber'}
-          </h1>
-          {/* Botão de alternância Receber/Pagar — antes era só um Select
-              pequeno dentro da grade de filtros, que nem chegava a filtrar
-              nada. Agora fica visível no topo e liga direto no filtro real
-              (boletos.tipo_operacao). */}
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setFiltros({ ...filtros, tipo: 'Receber' })}
-              className={
-                filtros.tipo === 'Receber'
-                  ? 'px-3 py-1.5 bg-primary text-primary-foreground'
-                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50'
-              }
-            >
-              Receber
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltros({ ...filtros, tipo: 'Pagar' })}
-              className={
-                filtros.tipo === 'Pagar'
-                  ? 'px-3 py-1.5 bg-primary text-primary-foreground border-l border-slate-200'
-                  : 'px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 border-l border-slate-200'
-              }
-            >
-              Pagar
-            </button>
-          </div>
+          <h1 className="text-lg font-semibold text-slate-800">{NOME_SISTEMA}</h1>
         </div>
         <div className="flex gap-2">
           <Button

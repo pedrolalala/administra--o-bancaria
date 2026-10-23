@@ -61,7 +61,6 @@ export default function BoletosPage() {
   // lugar nenhum da UI de Controle de Boletos -- nem pra filtrar, nem pra
   // criar/editar um boleto. Mesma convencao ja usada em
   // ConsultarDuplicatas.tsx/pedidos_compra/etc.
-  const [filterTipoOperacao, setFilterTipoOperacao] = useState('all')
   const [filterProjeto, setFilterProjeto] = useState('all')
   const [filterDataInicio, setFilterDataInicio] = useState('')
   const [filterDataFim, setFilterDataFim] = useState('')
@@ -119,6 +118,8 @@ export default function BoletosPage() {
           projeto:projetos(id, nome, codigo)
         )
       `)
+      // SPEC-225: cobrança Bradesco é só de Contas a Receber.
+      .eq('tipo_operacao', 'CR')
       .order('vencimento', { ascending: false })
 
     if (orcamentoId) {
@@ -168,7 +169,7 @@ export default function BoletosPage() {
         vencimento: formData.vencimento || null,
         status: formData.status,
         tipo: formData.tipo,
-        tipo_operacao: formData.tipo_operacao,
+        tipo_operacao: 'CR',
         perfil: formData.perfil || null,
         empresa_id: formData.empresa_id || null,
         parcela_id: formData.parcela_id || null,
@@ -235,7 +236,6 @@ export default function BoletosPage() {
       if (filterEmpresa !== 'all' && b.empresa_id !== filterEmpresa) return false
       if (filterStatus !== 'all' && b.status !== filterStatus) return false
       if (filterTipo !== 'all' && b.tipo !== filterTipo) return false
-      if (filterTipoOperacao !== 'all' && b.tipo_operacao !== filterTipoOperacao) return false
       if (filterProjeto !== 'all' && getProjetoFromBoleto(b)?.id !== filterProjeto) return false
 
       if (filterDataInicio && (!b.vencimento || b.vencimento < filterDataInicio)) return false
@@ -251,7 +251,6 @@ export default function BoletosPage() {
     filterEmpresa,
     filterStatus,
     filterTipo,
-    filterTipoOperacao,
     filterProjeto,
     filterDataInicio,
     filterDataFim,
@@ -352,19 +351,6 @@ export default function BoletosPage() {
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="Normal">Normal</SelectItem>
               <SelectItem value="Nota Fiscal">Nota Fiscal</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Pagar / Receber</Label>
-          <Select value={filterTipoOperacao} onValueChange={setFilterTipoOperacao}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="CR">Contas a Receber</SelectItem>
-              <SelectItem value="CP">Contas a Pagar</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -656,23 +642,6 @@ export default function BoletosPage() {
                 <SelectContent>
                   <SelectItem value="Normal">Normal</SelectItem>
                   <SelectItem value="Nota Fiscal">Nota Fiscal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>
-                Pagar / Receber <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.tipo_operacao}
-                onValueChange={(v) => setFormData({ ...formData, tipo_operacao: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CR">Contas a Receber</SelectItem>
-                  <SelectItem value="CP">Contas a Pagar</SelectItem>
                 </SelectContent>
               </Select>
             </div>

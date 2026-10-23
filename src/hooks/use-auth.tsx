@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { consumeCodeFromUrl } from '@/lib/cross-system-auth'
+import { SLUG_HUB } from '@/lib/modo-sistema'
 
 interface AuthContextType {
   user: User | null
@@ -67,7 +68,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(nextSession?.user ?? null)
     })
 
-    consumeCodeFromUrl('financeiro')
+    // SPEC-225: o Hub gera o código para o slug do card (contas-pagar / contas-receber).
+    consumeCodeFromUrl(SLUG_HUB)
       .catch(() => {})
       .finally(() => {
         supabase.auth.getSession().then(({ data: { session: initialSession } }) => {

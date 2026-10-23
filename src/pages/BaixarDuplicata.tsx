@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { differenceInDays, parseISO } from 'date-fns'
+import { NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
 const Field = ({
   label,
@@ -53,7 +54,6 @@ export default function BaixarDuplicata() {
   const [planoContas, setPlanoContas] = useState<any[]>([])
 
   // Filtros de localizacao (mesma logica de ConsultarDuplicatas.tsx)
-  const [filtroTipo, setFiltroTipo] = useState<'CP' | 'CR'>('CR')
   const [tipoResolvido, setTipoResolvido] = useState(idsIniciais.length === 0)
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroFatura, setFiltroFatura] = useState('')
@@ -94,7 +94,8 @@ export default function BaixarDuplicata() {
     const { data, error } = await supabase
       .from('boletos')
       .select('*')
-      .eq('tipo_operacao', filtroTipo)
+      // SPEC-225: cada sistema só baixa o próprio tipo (CP ou CR).
+      .eq('tipo_operacao', TIPO_OPERACAO)
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' })
       return
@@ -102,8 +103,8 @@ export default function BaixarDuplicata() {
     setDuplicatas(data || [])
   }
 
-  // SPEC-165: com ids vindos do "Exportar", descobre o tipo (Pagar/Receber)
-  // pelas próprias duplicatas antes da primeira busca.
+  // SPEC-165/225: com ids vindos do "Exportar", confere se as duplicatas são
+  // do tipo deste sistema antes da primeira busca.
   useEffect(() => {
     if (idsIniciais.length === 0) return
     supabase
@@ -113,7 +114,13 @@ export default function BaixarDuplicata() {
       .limit(1)
       .then(({ data }) => {
         const tipo = data?.[0]?.tipo_operacao
-        if (tipo === 'CP' || tipo === 'CR') setFiltroTipo(tipo)
+        if (tipo && tipo !== TIPO_OPERACAO) {
+          toast({
+            title: `Estas duplicatas são de ${NOME_OUTRO_SISTEMA}`,
+            description: `Abra pelo sistema ${NOME_OUTRO_SISTEMA}.`,
+            variant: 'destructive',
+          })
+        }
         setTipoResolvido(true)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,7 +130,7 @@ export default function BaixarDuplicata() {
     if (!tipoResolvido) return
     fetchDuplicatas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroTipo, tipoResolvido])
+  }, [tipoResolvido])
 
   const filtradas = useMemo(() => {
     return duplicatas.filter((d) => {
@@ -250,15 +257,7 @@ export default function BaixarDuplicata() {
           <div className="font-semibold text-xs mb-2 text-slate-700">Localizar Duplicatas</div>
           <div className="grid grid-cols-12 gap-3 mb-2">
             <Field label="Tipo">
-              <Select value={filtroTipo} onValueChange={(v) => setFiltroTipo(v as 'CP' | 'CR')}>
-                <SelectTrigger className="h-7 text-xs bg-slate-50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CP">Pagar</SelectItem>
-                  <SelectItem value="CR">Receber</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input className="h-7 text-xs bg-slate-100" value={TIPO_ROTULO} readOnly disabled />
             </Field>
             <Field label="Empresa">
               <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>

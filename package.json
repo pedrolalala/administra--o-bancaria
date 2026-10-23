@@ -9,6 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:pagar": "vite build --mode pagar",
+    "build:receber": "vite build --mode receber",
     "lint": "oxlint src",
     "lint:fix": "oxlint src --fix",
     "format": "oxfmt",

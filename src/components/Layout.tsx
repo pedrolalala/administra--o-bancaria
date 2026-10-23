@@ -6,20 +6,26 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { SystemSwitcher } from '@/components/SystemSwitcher'
+import { EH_PAGAR, NOME_SISTEMA, SLUG_HUB } from '@/lib/modo-sistema'
 
 export default function Layout() {
   const { user, signOut } = useAuth()
   const location = useLocation()
   const pathname = location.pathname
 
+  // SPEC-225: cobrança Bradesco (boletos/remessa/retorno) só em Contas a Receber.
   const navLinks = [
     { name: 'Notas Fiscais', path: '/notas-fiscais' },
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
-    { name: 'Controle de Boletos', path: '/boletos' },
-    { name: 'Gerar Remessa', path: '/remessa' },
-    { name: 'Retorno de Boletos', path: '/retorno-boletos' },
+    ...(EH_PAGAR
+      ? []
+      : [
+          { name: 'Controle de Boletos', path: '/boletos' },
+          { name: 'Gerar Remessa', path: '/remessa' },
+          { name: 'Retorno de Boletos', path: '/retorno-boletos' },
+        ]),
   ]
 
   return (
@@ -28,6 +34,15 @@ export default function Layout() {
         <div className="flex items-center gap-3 md:w-auto w-full justify-between md:justify-start">
           <div className="flex items-center gap-3">
             <img src={logoUrl} alt="Lucenera Logo" className="h-10 object-contain" />
+            <span
+              className={
+                EH_PAGAR
+                  ? 'text-sm font-semibold text-orange-700 whitespace-nowrap'
+                  : 'text-sm font-semibold text-sky-700 whitespace-nowrap'
+              }
+            >
+              {NOME_SISTEMA}
+            </span>
           </div>
           <div className="md:hidden">
             <Sheet>
@@ -96,7 +111,7 @@ export default function Layout() {
           <span>Sistema Operacional</span>
         </div>
       </footer>
-      <SystemSwitcher currentSlug="financeiro" />
+      <SystemSwitcher currentSlug={SLUG_HUB} />
     </div>
   )
 }

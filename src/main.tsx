@@ -4,6 +4,10 @@ import App from './App.tsx'
 import './main.css'
 import { iniciarRegistroDeTela } from './lib/registro-tela'
 import { instalarEnterPulaCampo } from './lib/enter-pula-campo'
+import { MODO, NOME_SISTEMA } from './lib/modo-sistema'
+
+// SPEC-225: título da aba conforme o sistema (Contas a Pagar / a Receber).
+document.title = MODO ? `${NOME_SISTEMA} | Lucenera` : 'Lucenera'
 
 // SPEC-206: registra as telas abertas (Central › Administração › Movimentação).
 iniciarRegistroDeTela()

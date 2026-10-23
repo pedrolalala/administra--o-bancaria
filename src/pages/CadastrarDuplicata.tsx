@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
+import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
 interface ParcelaLinha {
   // SPEC-165: id da linha já gravada (edição) e se ela já foi paga --
@@ -64,13 +65,14 @@ export default function CadastrarDuplicata() {
 
   // Gerar Conta
   const [dataEmissao, setDataEmissao] = useState(new Date().toISOString().slice(0, 10))
-  const [tipo, setTipo] = useState<'CP' | 'CR'>('CP')
   const [empresaId, setEmpresaId] = useState('')
   const [perfilEmpresa, setPerfilEmpresa] = useState('')
   const [responsavelId, setResponsavelId] = useState('')
   const [nf, setNf] = useState('')
   const [referencia, setReferencia] = useState('')
-  const [tipoPessoa, setTipoPessoa] = useState<'fornecedor' | 'cliente'>('fornecedor')
+  const [tipoPessoa, setTipoPessoa] = useState<'fornecedor' | 'cliente'>(
+    EH_PAGAR ? 'fornecedor' : 'cliente',
+  )
   const [pessoaId, setPessoaId] = useState('')
   // Nome gravado no boleto -- preservado na edição quando a duplicata antiga
   // não tem contato_id (antes a edição salvava o nome em branco).
@@ -128,6 +130,16 @@ export default function CadastrarDuplicata() {
       .then(async ({ data }) => {
         if (!data || data.length === 0) return
         const first = data[0]
+        // SPEC-225: lançamento do outro tipo não abre neste sistema.
+        if (first.tipo_operacao !== TIPO_OPERACAO) {
+          toast({
+            title: `Este lançamento é de ${NOME_OUTRO_SISTEMA}`,
+            description: `Abra pelo sistema ${NOME_OUTRO_SISTEMA}.`,
+            variant: 'destructive',
+          })
+          navigate('/duplicatas', { replace: true })
+          return
+        }
         setNomePagadorOriginal(first.nome_pagador || '')
         setIdsOriginais(data.map((b: any) => b.id))
         if (first.contato_id) {
@@ -142,7 +154,6 @@ export default function CadastrarDuplicata() {
           }
         }
         setDataEmissao(first.emissao || new Date().toISOString().slice(0, 10))
-        setTipo((first.tipo_operacao as 'CP' | 'CR') || 'CP')
         setEmpresaId(first.empresa_id || '')
         setPerfilEmpresa(first.perfil || '')
         setResponsavelId(first.responsavel_id || '')
@@ -283,7 +294,7 @@ export default function CadastrarDuplicata() {
         contato_id: pessoaId || null,
         empresa_id: empresaId,
         numero_documento: nf || null,
-        tipo_operacao: tipo,
+        tipo_operacao: TIPO_OPERACAO,
         total_parcelas: totalParcelas,
         emissao: dataEmissao,
         perfil: perfilEmpresa || null,
@@ -377,15 +388,7 @@ export default function CadastrarDuplicata() {
               />
             </Field>
             <Field label="Tipo">
-              <Select value={tipo} onValueChange={(v) => setTipo(v as 'CP' | 'CR')}>
-                <SelectTrigger className="h-7 text-xs bg-slate-50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CP">Pagar</SelectItem>
-                  <SelectItem value="CR">Receber</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input className="h-7 text-xs bg-slate-100" value={TIPO_ROTULO} readOnly disabled />
             </Field>
             <Field label="Empresa">
               <Select value={empresaId} onValueChange={setEmpresaId}>

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { SLUG_HUB } from '@/lib/modo-sistema'
 
 type RedirectOptions = {
   newTab?: boolean
@@ -33,7 +34,7 @@ export async function redirectWithCode(
     const redirectPath = safeRedirectPath(redirectTo)
     const { data, error } = await supabase.functions.invoke('generate-cross-system-code', {
       body: {
-        sistema_origem: 'financeiro',
+        sistema_origem: SLUG_HUB,
         sistema_destino: sistemaDestino || destination.hostname,
         redirect_to: redirectPath,
       },
