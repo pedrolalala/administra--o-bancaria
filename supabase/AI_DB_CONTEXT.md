@@ -26,6 +26,12 @@ Registro/emissão de nota fiscal agora mora no sistema novo "Vendas"
 Focus NFe (SPEC-154). O schema (`notas_fiscais`/`notas_fiscais_itens`)
 continua compartilhado — só o CRUD não mora mais aqui.
 
+**SPEC-231 A2 (27/10/2026): entrada de NF de compra gera duplicata a pagar.** Trigger em
+`nota_fiscal_compra_parcelas` cria 1 `boletos` por parcela (`tipo_operacao = 'CP'`, `status = 'Pendente'`,
+`nosso_numero = 'NFC-<id da parcela>'`, `conta_grupo_id` = id da nota em `notas_fiscais_compra`). Cancelar a entrada
+no Compras apaga as não pagas; com parcela paga o cancelamento é bloqueado. Editar uma dessas duplicatas aqui funciona
+normal (mesmo `conta_grupo_id`).
+
 ## Objetos reais relevantes no Supabase
 
 Principais tabelas:
