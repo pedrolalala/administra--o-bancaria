@@ -12,7 +12,6 @@ import { EH_PAGAR, MODO, NOME_SISTEMA } from '@/lib/modo-sistema'
 const Index = lazy(() => import('./pages/Index'))
 const BoletosPage = lazy(() => import('./pages/Boletos'))
 const RemessaPage = lazy(() => import('./pages/Remessa'))
-const NotasFiscaisPage = lazy(() => import('./pages/NotasFiscais'))
 const ConsultarDuplicatas = lazy(() => import('./pages/ConsultarDuplicatas'))
 const ContasEmAberto = lazy(() => import('./pages/ContasEmAberto'))
 const BaixarDuplicata = lazy(() => import('./pages/BaixarDuplicata'))
@@ -85,7 +84,8 @@ const AppRoutes = () => {
               <Route path="/remessa" element={<RemessaPage />} />
             </>
           )}
-          <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
+          {/* SPEC-231 E2: registrar NF avulsa saiu; cadastra-se a duplicata (com o nº da NF) */}
+          <Route path="/notas-fiscais" element={<Navigate to="/cadastrar-duplicata" replace />} />
         </Route>
         {/* tela que não pertence a este sistema volta para o início */}
         {EH_PAGAR &&

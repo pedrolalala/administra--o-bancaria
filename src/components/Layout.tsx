@@ -14,8 +14,8 @@ export default function Layout() {
   const pathname = location.pathname
 
   // SPEC-225: cobrança Bradesco (boletos/remessa/retorno) só em Contas a Receber.
+  // SPEC-231 E2: "Notas Fiscais" (registrar NF avulsa) saiu — a duplicata já leva o número da NF.
   const navLinks = [
-    { name: 'Notas Fiscais', path: '/notas-fiscais' },
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },

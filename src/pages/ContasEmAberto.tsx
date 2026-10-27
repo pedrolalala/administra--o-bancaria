@@ -32,6 +32,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { exportarContasExcel } from '@/lib/exportar-contas-excel'
 import { PagamentosAntecipadosDialog } from '@/components/PagamentosAntecipadosDialog'
+import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 
 // SPEC-117: universo real de contas a pagar/receber "em aberto" (transacoes
 // + negociacoes + empresas/contatos/plano_de_contas). Diferente de
@@ -48,6 +49,8 @@ interface TransacaoAberta {
   empresa: string
   categoria: string
   pessoa: string
+  contatoId: string | null
+  projetoId: string | null
   descricao: string
   valor: number
   dtEmissao: string | null
@@ -86,6 +89,8 @@ export default function ContasEmAberto() {
   // SPEC-215: pagamento antecipado ao fornecedor (vinculado depois na Entrada de Nota Fiscal).
   const [antecipadosAberto, setAntecipadosAberto] = useState(false)
 
+  // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
+  const [pessoaSel, setPessoaSel] = useState<PessoaSelecionada | null>(null)
   const [filtros, setFiltros] = useState({
     empresa: 'Todas',
     perfil: 'todos',
@@ -117,6 +122,8 @@ export default function ContasEmAberto() {
             perfil,
             negociacoes (
               cod_duplicata,
+              contato_id,
+              projeto_id,
               total_parc,
               empresas ( nome ),
               contatos ( nome ),
@@ -195,6 +202,8 @@ export default function ContasEmAberto() {
         empresa: empresaRel?.nome || '(sem empresa)',
         categoria: planoRel?.nome || 'Sem categoria',
         pessoa: contatoRel?.nome || '(sem contato vinculado)',
+        contatoId: (neg?.contato_id as string | null) ?? null,
+        projetoId: (neg?.projeto_id as string | null) ?? null,
         descricao: t.descricao || '',
         valor: Number(t.valor || 0),
         dtEmissao: t.dt_emissao,
@@ -236,10 +245,15 @@ export default function ContasEmAberto() {
         const haystack = normalize(d.pessoa)
         if (!terms.every((t) => haystack.includes(t))) return false
       }
+      // SPEC-231 E1: só o cadastro escolhido
+      if (pessoaSel) {
+        if (pessoaSel.projetoId ? d.projetoId !== pessoaSel.projetoId : d.contatoId !== pessoaSel.contatoId)
+          return false
+      }
 
       return true
     })
-  }, [processedData, filtros])
+  }, [processedData, filtros, pessoaSel])
 
   const filteredData = dadosBase
 
@@ -503,11 +517,11 @@ export default function ContasEmAberto() {
               <label className="text-[10px] text-slate-500 font-medium uppercase">
                 Pessoa / Fornecedor
               </label>
-              <Input
-                className="h-7 text-xs bg-white w-full"
-                placeholder="Buscar por pessoa (múltiplos termos, sem acento)..."
-                value={filtros.pessoa}
-                onChange={(e) => setFiltros({ ...filtros, pessoa: e.target.value })}
+              <CampoPessoa
+                texto={filtros.pessoa}
+                onTexto={(v) => setFiltros({ ...filtros, pessoa: v })}
+                selecionada={pessoaSel}
+                onSelecionada={setPessoaSel}
               />
             </div>
           </div>

@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
 import { NOME_SISTEMA, TIPO_OPERACAO } from '@/lib/modo-sistema'
+import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
@@ -61,6 +62,8 @@ export default function ConsultarDuplicatas() {
     boleto: '',
     pessoa: '',
   })
+  // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
+  const [pessoaSel, setPessoaSel] = useState<PessoaSelecionada | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -69,7 +72,7 @@ export default function ConsultarDuplicatas() {
     for (let from = 0; ; from += PAGE) {
       const { data: page, error } = await (supabase as any)
         .from('boletos')
-        .select('*, empresas (nome), orcamentos (numero, numero_venda)')
+        .select('*, empresas (nome), orcamentos (numero, numero_venda, projeto_id, cliente_id)')
         // SPEC-225: cada sistema só lê o próprio tipo (CP ou CR).
         .eq('tipo_operacao', TIPO_OPERACAO)
         .order('vencimento', { ascending: true })
@@ -131,6 +134,20 @@ export default function ConsultarDuplicatas() {
         const haystack = normalize(d.nome_pagador || '')
         if (!terms.every((t) => haystack.includes(t))) return false
       }
+      // SPEC-231 E1: só o cadastro escolhido (projeto específico, ou o cliente/fornecedor; duplicata antiga sem
+      // vínculo casa pelo nome)
+      if (pessoaSel) {
+        const orc = getOrcamento(d)
+        if (pessoaSel.projetoId) {
+          if (orc?.projeto_id !== pessoaSel.projetoId) return false
+        } else if (
+          d.contato_id !== pessoaSel.contatoId &&
+          orc?.cliente_id !== pessoaSel.contatoId &&
+          (d.nome_pagador || '').trim().toLowerCase() !== pessoaSel.nome.trim().toLowerCase()
+        ) {
+          return false
+        }
+      }
       if (
         filtros.duplicata &&
         !d.numero_documento?.toLowerCase().includes(filtros.duplicata.toLowerCase())
@@ -167,7 +184,7 @@ export default function ConsultarDuplicatas() {
 
       return true
     })
-  }, [data, filtros])
+  }, [data, filtros, pessoaSel])
 
   const totais = useMemo(() => {
     return filteredData.reduce(
@@ -485,11 +502,11 @@ export default function ConsultarDuplicatas() {
           </div>
           <div className="col-span-8">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Pessoa</label>
-            <Input
-              className="h-7 text-xs bg-white w-full"
-              placeholder="Buscar por pessoa (múltiplos termos, sem acento)..."
-              value={filtros.pessoa}
-              onChange={(e) => setFiltros({ ...filtros, pessoa: e.target.value })}
+            <CampoPessoa
+              texto={filtros.pessoa}
+              onTexto={(v) => setFiltros({ ...filtros, pessoa: v })}
+              selecionada={pessoaSel}
+              onSelecionada={setPessoaSel}
             />
           </div>
         </div>
