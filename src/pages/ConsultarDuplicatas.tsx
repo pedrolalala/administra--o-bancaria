@@ -47,7 +47,8 @@ export default function ConsultarDuplicatas() {
     // 'sao_paulo', SPEC-064) — o filtro nunca filtrava nada. Corrigido
     // pra usar os valores reais.
     perfilEmpresa: 'todos',
-    tipoSituacao: 'Todos',
+    // SPEC-245: nasce em "Aberto" (é o que se confere todo dia e é leve); Todos/Pago carregam as pagas da Connect sob demanda.
+    tipoSituacao: 'Aberto',
     tipoData: 'Vencimento',
     // Achado 2026-08-20: Data início/Data final nunca filtravam nada de
     // verdade (não eram lidos em filteredData) -- e o valor padrão era um
@@ -65,7 +66,11 @@ export default function ConsultarDuplicatas() {
   // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
   const [pessoaSel, setPessoaSel] = useState<PessoaSelecionada | null>(null)
 
-  const fetchData = async () => {
+  const [pagasCarregadas, setPagasCarregadas] = useState(false)
+  // a grade desenha no máximo `limite` linhas (milhares de linhas travavam a página); os totais continuam somando tudo
+  const [limite, setLimite] = useState(500)
+
+  const fetchData = async (comPagas: boolean = false) => {
     setLoading(true)
     const PAGE = 1000
     let all: any[] = []
@@ -88,6 +93,7 @@ export default function ConsultarDuplicatas() {
     // SPEC-245 (reunião 42, 05/11): as duplicatas da Connect (planilhas ContaReceber/ContaPagar do dia) moram em `transacoes`, não em `boletos`.
     // A grade mostra as duas fontes no mesmo formato; as da Connect são só consulta (a baixa delas vem da planilha do dia). Canceladas não entram.
     const doConnect: any[] = []
+    try {
     for (let from = 0; ; from += PAGE) {
       const { data: page, error } = await (supabase as any)
         .from('transacoes')
@@ -96,6 +102,7 @@ export default function ConsultarDuplicatas() {
            negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
         )
         .eq('tipo', TIPO_TRANSACAO)
+        .match(comPagas ? {} : { status_pago: 0 })
         .neq('status_pago', 2)
         .order('dt_vencimento', { ascending: true })
         .order('id', { ascending: true })
@@ -139,10 +146,27 @@ export default function ConsultarDuplicatas() {
       }
       if (!page || page.length < PAGE) break
     }
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar duplicatas da Connect', description: e?.message || String(e), variant: 'destructive' })
+    }
     const todas = [...all, ...doConnect].sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')))
     setData(todas)
     setLoading(false)
   }
+
+  // Todos/Pago precisam das pagas da Connect (milhares): carrega uma vez, só quando pedido
+  useEffect(() => {
+    if ((filtros.tipoSituacao === 'Todos' || filtros.tipoSituacao === 'Pago') && !pagasCarregadas) {
+      setPagasCarregadas(true)
+      fetchData(true)
+    }
+    setLimite(500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.tipoSituacao])
+
+  useEffect(() => {
+    setLimite(500)
+  }, [filtros, pessoaSel])
 
   useEffect(() => {
     fetchData()
@@ -409,7 +433,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
-            onClick={fetchData}
+            onClick={() => fetchData(pagasCarregadas)}
           >
             <Search className="h-4 w-4" />
             <span className="text-[10px]">Localizar</span>
@@ -635,7 +659,7 @@ export default function ConsultarDuplicatas() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredData.map((d) => (
+              filteredData.slice(0, limite).map((d) => (
                 <TableRow
                   key={d.id}
                   className={`h-7 hover:bg-primary/5 transition-colors group cursor-pointer ${
@@ -718,6 +742,19 @@ export default function ConsultarDuplicatas() {
             )}
           </TableBody>
         </Table>
+        {filteredData.length > limite && (
+          <div className="flex items-center justify-center gap-3 py-3 text-xs text-slate-600">
+            <span>
+              Mostrando {limite} de {filteredData.length} (os totais abaixo somam todas).
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setLimite((l) => l + 500)}>
+              Mostrar mais 500
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLimite(filteredData.length)}>
+              Mostrar todas
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="bg-slate-200 border-t border-b flex justify-between p-2 px-4 text-[11px] font-semibold text-slate-700 shrink-0">
@@ -834,7 +871,7 @@ export default function ConsultarDuplicatas() {
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
         onSuccess={() => {
           setSelecionadas(new Set())
-          fetchData()
+          fetchData(pagasCarregadas)
         }}
       />
       <InfoDuplicataModal
