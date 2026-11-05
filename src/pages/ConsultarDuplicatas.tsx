@@ -23,7 +23,7 @@ import { Pencil, Search, Play, Handshake, Download, Info } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
-import { NOME_SISTEMA, TIPO_OPERACAO, TIPO_TRANSACAO } from '@/lib/modo-sistema'
+import { NOME_SISTEMA, TIPO_OPERACAO, TIPO_TRANSACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 
 export default function ConsultarDuplicatas() {
@@ -530,10 +530,12 @@ export default function ConsultarDuplicatas() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                <SelectItem value="Aberto">Aberto</SelectItem>
-                <SelectItem value="Pago">Pago</SelectItem>
+                {/* SPEC-245 (reunião 04, Filippo): Contas a Pagar mostra SÓ o que falta pagar; o que já foi pago fica num histórico separado
+                    (sem "Todos", para não misturar). Contas a Receber segue com todas as situações. */}
+                {!EH_PAGAR && <SelectItem value="Todos">Todos</SelectItem>}
+                <SelectItem value="Aberto">{EH_PAGAR ? 'A pagar (em aberto)' : 'Aberto'}</SelectItem>
                 <SelectItem value="Vencido">Vencido</SelectItem>
+                <SelectItem value="Pago">{EH_PAGAR ? 'Pagas (histórico)' : 'Pago'}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -616,7 +618,11 @@ export default function ConsultarDuplicatas() {
       </div>
 
       <div className="px-4 py-1 text-[11px] text-slate-500 bg-slate-50 border-b shrink-0">
-        Esta lista mostra as duplicatas da Connect (carregadas da planilha do dia, só consulta) e as cadastradas neste sistema.
+        {EH_PAGAR
+          ? filtros.tipoSituacao === 'Pago'
+            ? 'HISTÓRICO: contas já pagas (a lista de Contas a Pagar mostra só o que ainda falta pagar). Duplicatas da Connect, só consulta.'
+            : 'Contas a Pagar: só o que ainda falta pagar (duplicatas da Connect carregadas da planilha do dia, só consulta, e as cadastradas aqui). As já pagas estão em "Pagas (histórico)".'
+          : 'Esta lista mostra as duplicatas da Connect (carregadas da planilha do dia, só consulta) e as cadastradas neste sistema.'}
       </div>
       <div className="flex-1 min-h-[280px] overflow-auto bg-white relative">
         <Table className="w-full text-xs whitespace-nowrap">
