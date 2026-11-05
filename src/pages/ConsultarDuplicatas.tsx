@@ -23,7 +23,7 @@ import { Pencil, Search, Play, Handshake, Download, Info } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
-import { NOME_SISTEMA, TIPO_OPERACAO } from '@/lib/modo-sistema'
+import { NOME_SISTEMA, TIPO_OPERACAO, TIPO_TRANSACAO } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 
 export default function ConsultarDuplicatas() {
@@ -85,7 +85,62 @@ export default function ConsultarDuplicatas() {
       all = all.concat(page || [])
       if (!page || page.length < PAGE) break
     }
-    setData(all)
+    // SPEC-245 (reunião 42, 05/11): as duplicatas da Connect (planilhas ContaReceber/ContaPagar do dia) moram em `transacoes`, não em `boletos`.
+    // A grade mostra as duas fontes no mesmo formato; as da Connect são só consulta (a baixa delas vem da planilha do dia). Canceladas não entram.
+    const doConnect: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data: page, error } = await (supabase as any)
+        .from('transacoes')
+        .select(
+          `id, descricao, dt_emissao, dt_vencimento, dt_pagamento, vl_parcela, vl_pago, vl_desconto, vl_juros, status_pago, num_parc, tipo_pagamento, perfil,
+           negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
+        )
+        .eq('tipo', TIPO_TRANSACAO)
+        .neq('status_pago', 2)
+        .order('dt_vencimento', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (error) {
+        toast({ title: 'Erro ao carregar duplicatas da Connect', description: error.message, variant: 'destructive' })
+        break
+      }
+      for (const t of page || []) {
+        const n = Array.isArray(t.negociacoes) ? t.negociacoes[0] : t.negociacoes
+        const contato = Array.isArray(n?.contatos) ? n?.contatos[0] : n?.contatos
+        const empresa = Array.isArray(n?.empresas) ? n?.empresas[0] : n?.empresas
+        doConnect.push({
+          id: `tx:${t.id}`,
+          _fonte: 'connect',
+          tipo_operacao: TIPO_OPERACAO,
+          tipo: n?.num_nota ? 'Nota Fiscal' : 'Normal',
+          status: t.status_pago === 1 ? 'Pago' : 'Pendente',
+          numero_documento: n?.cod_duplicata != null ? String(n.cod_duplicata) : '',
+          num_parcela: t.num_parc,
+          total_parcelas: n?.total_parc,
+          venda: n?.cod_venda != null ? String(n.cod_venda) : '',
+          fatura: n?.num_nota != null ? String(n.num_nota) : '',
+          nome_pagador: contato?.nome || (n?.cod_pessoa != null ? `Pessoa ${n.cod_pessoa}` : ''),
+          emissao: t.dt_emissao,
+          vencimento: t.dt_vencimento,
+          data_pagamento: t.dt_pagamento,
+          valor: t.vl_parcela,
+          valor_pago: t.vl_pago,
+          juros_multa: t.vl_juros,
+          desconto: t.vl_desconto,
+          forma_pagamento: t.tipo_pagamento,
+          observacao: t.descricao,
+          perfil: t.perfil,
+          empresas: empresa ? { nome: empresa.nome } : null,
+          contato_id: n?.contato_id ?? null,
+          orcamentos: null,
+          conta_grupo_id: null,
+          nosso_numero: null,
+        })
+      }
+      if (!page || page.length < PAGE) break
+    }
+    const todas = [...all, ...doConnect].sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')))
+    setData(todas)
     setLoading(false)
   }
 
@@ -234,7 +289,13 @@ export default function ConsultarDuplicatas() {
   // selecionadas (ou vazio, pra localizar de la mesmo) -- fluxo pedido
   // explicitamente pelo usuario (SPEC-073).
   const handleExportar = () => {
-    navigate('/baixar-duplicata', { state: { ids: Array.from(selecionadas) } })
+    // SPEC-245: as da Connect não existem em `boletos`; só as cadastradas aqui seguem para a tela de baixa
+    const ids = Array.from(selecionadas).filter((id) => !String(id).startsWith('tx:'))
+    if (selecionadas.size > 0 && ids.length === 0) {
+      toast({ title: 'Duplicata da Connect: só consulta', description: 'Marque uma duplicata cadastrada neste sistema para levar à tela de baixa.', variant: 'destructive' })
+      return
+    }
+    navigate('/baixar-duplicata', { state: { ids } })
   }
 
   // "Executar": definido pelo usuário em 2026-08-20 (SPEC-073 P-1) -- dar
@@ -244,6 +305,15 @@ export default function ConsultarDuplicatas() {
     if (selecionadas.size === 0) {
       toast({
         title: 'Selecione ao menos uma duplicata',
+        variant: 'destructive',
+      })
+      return
+    }
+    // SPEC-245: duplicata da Connect é só consulta aqui; a baixa vem da planilha do dia
+    if (data.some((d) => selecionadas.has(d.id) && d._fonte === 'connect')) {
+      toast({
+        title: 'Duplicata da Connect: só consulta',
+        description: 'As duplicatas carregadas da Connect não são baixadas por aqui; a baixa chega pela planilha do dia. Desmarque-as para continuar.',
         variant: 'destructive',
       })
       return
@@ -288,6 +358,14 @@ export default function ConsultarDuplicatas() {
     }
     const id = Array.from(selecionadas)[0]
     const duplicata = data.find((d) => d.id === id)
+    if (duplicata?._fonte === 'connect') {
+      toast({
+        title: 'Duplicata da Connect: só consulta',
+        description: 'Ela vem da planilha do dia e não é editada por aqui.',
+        variant: 'destructive',
+      })
+      return
+    }
     if (!duplicata?.conta_grupo_id) {
       toast({
         title: 'Duplicata sem grupo de conta',
@@ -512,6 +590,9 @@ export default function ConsultarDuplicatas() {
         </div>
       </div>
 
+      <div className="px-4 py-1 text-[11px] text-slate-500 bg-slate-50 border-b shrink-0">
+        Esta lista mostra as duplicatas da Connect (carregadas da planilha do dia, só consulta) e as cadastradas neste sistema.
+      </div>
       <div className="flex-1 min-h-[280px] overflow-auto bg-white relative">
         <Table className="w-full text-xs whitespace-nowrap">
           <TableHeader className="sticky top-0 bg-slate-100 z-10 shadow-sm border-b">
@@ -562,6 +643,10 @@ export default function ConsultarDuplicatas() {
                   }`}
                   onClick={() => toggleSelecionada(d.id)}
                   onDoubleClick={() => {
+                    if (d._fonte === 'connect') {
+                      toast({ title: 'Duplicata da Connect: só consulta', description: 'Ela vem da planilha do dia.' })
+                      return
+                    }
                     if (!d.conta_grupo_id) {
                       toast({
                         title: 'Duplicata sem grupo de conta',
@@ -589,7 +674,10 @@ export default function ConsultarDuplicatas() {
                   >
                     {d.tipo_operacao === 'CP' ? 'P' : 'R'}
                   </TableCell>
-                  <TableCell className="p-1 text-center border-r text-slate-500" title={d.tipo}>
+                  <TableCell
+                    className="p-1 text-center border-r text-slate-500"
+                    title={`${d.tipo}${d._fonte === 'connect' ? ' — vem da Connect (planilha do dia), só consulta' : ' — cadastrada neste sistema'}`}
+                  >
                     {d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r font-medium text-slate-700">
