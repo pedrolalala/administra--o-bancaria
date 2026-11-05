@@ -93,12 +93,15 @@ export default function ConsultarDuplicatas() {
     // SPEC-245 (reunião 42, 05/11): as duplicatas da Connect (planilhas ContaReceber/ContaPagar do dia) moram em `transacoes`, não em `boletos`.
     // A grade mostra as duas fontes no mesmo formato; as da Connect são só consulta (a baixa delas vem da planilha do dia). Canceladas não entram.
     const doConnect: any[] = []
+    // SPEC-246: venda aprovada no sistema novo gera a parcela de projeto + o boleto + a transação em aberto (previsão do financeiro).
+    // A parcela que já aparece pelo boleto não pode aparecer de novo pela transação.
+    const parcelasComBoleto = new Set<string>(all.map((b: any) => b.parcela_id).filter(Boolean))
     try {
     for (let from = 0; ; from += PAGE) {
       const { data: page, error } = await (supabase as any)
         .from('transacoes')
         .select(
-          `id, descricao, dt_emissao, dt_vencimento, dt_pagamento, vl_parcela, vl_pago, vl_desconto, vl_juros, status_pago, num_parc, tipo_pagamento, perfil,
+          `id, parcela_id, descricao, dt_emissao, dt_vencimento, dt_pagamento, vl_parcela, vl_pago, vl_desconto, vl_juros, status_pago, num_parc, tipo_pagamento, perfil,
            negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, nome_pessoa, razao_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
         )
         .eq('tipo', TIPO_TRANSACAO)
@@ -112,6 +115,7 @@ export default function ConsultarDuplicatas() {
         break
       }
       for (const t of page || []) {
+        if (t.parcela_id && parcelasComBoleto.has(t.parcela_id)) continue
         const n = Array.isArray(t.negociacoes) ? t.negociacoes[0] : t.negociacoes
         const contato = Array.isArray(n?.contatos) ? n?.contatos[0] : n?.contatos
         const empresa = Array.isArray(n?.empresas) ? n?.empresas[0] : n?.empresas
