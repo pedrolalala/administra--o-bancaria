@@ -99,7 +99,7 @@ export default function ConsultarDuplicatas() {
         .from('transacoes')
         .select(
           `id, descricao, dt_emissao, dt_vencimento, dt_pagamento, vl_parcela, vl_pago, vl_desconto, vl_juros, status_pago, num_parc, tipo_pagamento, perfil,
-           negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
+           negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, nome_pessoa, razao_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
         )
         .eq('tipo', TIPO_TRANSACAO)
         .match(comPagas ? {} : { status_pago: 0 })
@@ -126,7 +126,8 @@ export default function ConsultarDuplicatas() {
           total_parcelas: n?.total_parc,
           venda: n?.cod_venda != null ? String(n.cod_venda) : '',
           fatura: n?.num_nota != null ? String(n.num_nota) : '',
-          nome_pagador: contato?.nome || (n?.cod_pessoa != null ? `Pessoa ${n.cod_pessoa}` : ''),
+          // SPEC-245: nome da pessoa como a planilha da Connect diz (espelho); sem ela, o cadastro; nunca vazio
+          nome_pagador: n?.nome_pessoa || n?.razao_pessoa || contato?.nome || (n?.cod_pessoa != null ? `Pessoa ${n.cod_pessoa}` : ''),
           emissao: t.dt_emissao,
           vencimento: t.dt_vencimento,
           data_pagamento: t.dt_pagamento,

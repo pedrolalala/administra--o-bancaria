@@ -125,6 +125,9 @@ export default function ContasEmAberto() {
               contato_id,
               projeto_id,
               total_parc,
+              cod_pessoa,
+              nome_pessoa,
+              razao_pessoa,
               empresas ( nome ),
               contatos ( nome ),
               plano_de_contas ( nome )
@@ -201,7 +204,8 @@ export default function ContasEmAberto() {
         tipo: t.tipo === 'despesa' ? 'Pagar' : 'Receber',
         empresa: empresaRel?.nome || '(sem empresa)',
         categoria: planoRel?.nome || 'Sem categoria',
-        pessoa: contatoRel?.nome || '(sem contato vinculado)',
+        // SPEC-245: a planilha da Connect é o ESPELHO — o nome da pessoa é o dela; sem ela, o cadastro; nunca vazio
+        pessoa: neg?.nome_pessoa || neg?.razao_pessoa || contatoRel?.nome || (neg?.cod_pessoa != null ? `Pessoa ${neg.cod_pessoa}` : '(sem pessoa)'),
         contatoId: (neg?.contato_id as string | null) ?? null,
         projetoId: (neg?.projeto_id as string | null) ?? null,
         descricao: t.descricao || '',
