@@ -26,6 +26,10 @@ import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
 import { NOME_SISTEMA, TIPO_OPERACAO, TIPO_TRANSACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 
+// SPEC-248: na Contas a Pagar, duplicata "Cancelado" (DPL errada ou que mudou) não conta como aberta nem some do banco.
+// (a Contas a Receber não mudou). Aceita "cancelado" minúsculo, que é como o banco grava em alguns fluxos.
+const ehCancelada = (status: unknown) => EH_PAGAR && String(status ?? '').toLowerCase() === 'cancelado'
+
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -196,9 +200,10 @@ export default function ConsultarDuplicatas() {
         // o status legado 'Pendente' (7 registros), escondendo a maioria
         // das duplicatas realmente em aberto. Mesmo critério que a coluna
         // "A"/"P" da grade já usava (d.status === 'Pago' ? 'P' : 'A').
-        const isAberto = d.status !== 'Pago'
+        const isAberto = d.status !== 'Pago' && !ehCancelada(d.status)
         if (filtros.tipoSituacao === 'Aberto' && !isAberto) return false
         if (filtros.tipoSituacao === 'Pago' && d.status !== 'Pago') return false
+        if (filtros.tipoSituacao === 'Cancelado' && !ehCancelada(d.status)) return false
         if (
           filtros.tipoSituacao === 'Vencido' &&
           !(isAberto && d.vencimento && new Date(d.vencimento) < new Date())
@@ -275,7 +280,7 @@ export default function ConsultarDuplicatas() {
       (acc, curr) => {
         // Mesmo achado do filtro "Aberto" acima -- 'pendente_registro' e
         // 'Remessa Enviada' também são situações em aberto, não só 'Pendente'.
-        const isAberto = curr.status !== 'Pago'
+        const isAberto = curr.status !== 'Pago' && !ehCancelada(curr.status)
         const isVencido = isAberto && curr.vencimento && new Date(curr.vencimento) < new Date()
         if (isVencido) acc.vencido += Number(curr.valor || 0)
         if (isAberto && !isVencido) acc.aVencer += Number(curr.valor || 0)
@@ -540,6 +545,7 @@ export default function ConsultarDuplicatas() {
                 <SelectItem value="Aberto">{EH_PAGAR ? 'A pagar (em aberto)' : 'Aberto'}</SelectItem>
                 <SelectItem value="Vencido">Vencido</SelectItem>
                 <SelectItem value="Pago">{EH_PAGAR ? 'Pagas (histórico)' : 'Pago'}</SelectItem>
+                {EH_PAGAR && <SelectItem value="Cancelado">Canceladas</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -716,7 +722,7 @@ export default function ConsultarDuplicatas() {
                     {d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r font-medium text-slate-700">
-                    {d.status === 'Pago' ? 'P' : 'A'}
+                    {d.status === 'Pago' ? 'P' : ehCancelada(d.status) ? 'C' : 'A'}
                   </TableCell>
                   <TableCell className="p-1 border-r font-mono">
                     {d.numero_documento || '-'}

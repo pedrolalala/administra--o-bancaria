@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { differenceInDays, parseISO } from 'date-fns'
-import { NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
+import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
 const Field = ({
   label,
@@ -37,6 +37,9 @@ const Field = ({
     {children}
   </div>
 )
+
+// SPEC-248: duplicata "Cancelado" da Contas a Pagar não conta como aberta (a Contas a Receber não mudou).
+const ehCancelada = (status: unknown) => EH_PAGAR && String(status ?? '').toLowerCase() === 'cancelado'
 
 export default function BaixarDuplicata() {
   const { toast } = useToast()
@@ -134,7 +137,7 @@ export default function BaixarDuplicata() {
 
   const filtradas = useMemo(() => {
     return duplicatas.filter((d) => {
-      if (filtroTipoSituacao === 'Aberto' && d.status === 'Pago') return false
+      if (filtroTipoSituacao === 'Aberto' && (d.status === 'Pago' || ehCancelada(d.status))) return false
       if (filtroTipoSituacao === 'Pago' && d.status !== 'Pago') return false
       if (filtroEmpresa && d.empresa_id !== filtroEmpresa) return false
       if (filtroBoleto && !d.nosso_numero?.toLowerCase().includes(filtroBoleto.toLowerCase()))
@@ -194,6 +197,13 @@ export default function BaixarDuplicata() {
       const selecionadasArr = duplicatas.filter((d) => selecionadas.has(d.id))
       if (selecionadasArr.length === 0) {
         throw new Error('As duplicatas selecionadas não estão na lista atual. Localize-as de novo.')
+      }
+      // SPEC-248: duplicata cancelada (Contas a Pagar) não recebe baixa
+      const canceladas = selecionadasArr.filter((d) => ehCancelada(d.status))
+      if (canceladas.length > 0) {
+        throw new Error(
+          `${canceladas.map((d) => d.numero_documento || d.nosso_numero).join(', ')} está cancelada e não pode ser baixada. Desmarque para continuar.`,
+        )
       }
       const jaPagas = selecionadasArr.filter((d) => d.status === 'Pago')
       if (jaPagas.length > 0) {

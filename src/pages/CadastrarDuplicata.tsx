@@ -81,13 +81,16 @@ export default function CadastrarDuplicata() {
   const [grupoId, setGrupoId] = useState('')
   const [subGrupoId, setSubGrupoId] = useState('')
   const [apropriacaoId, setApropriacaoId] = useState('')
-  const [situacao, setSituacao] = useState('Pendente')
+  // SPEC-248: Contas a Pagar só tem Aberto / Pago / Cancelado. Contas a Receber segue com a lista do boleto/CNAB.
+  const [situacao, setSituacao] = useState(EH_PAGAR ? 'Aberto' : 'Pendente')
   const [contaBancariaId, setContaBancariaId] = useState('')
   const [observacao, setObservacao] = useState('')
 
   // Gerar Parcelas
   const [numParc, setNumParc] = useState('1')
-  const [dia, setDia] = useState('10')
+  // SPEC-248: antes era o campo "Dia" (dia do mês dos vencimentos, padrão 10) — o usuário usava como valor da conta.
+  // Agora é o valor de cada parcela; os vencimentos seguintes caem no mesmo dia do mês do "Venc 1° Parc".
+  const [valorParcela, setValorParcela] = useState('')
   const [vencPrimeiraParc, setVencPrimeiraParc] = useState('')
   const [parcelas, setParcelas] = useState<ParcelaLinha[]>([])
 
@@ -165,7 +168,9 @@ export default function CadastrarDuplicata() {
         // parcela e, se ela estivesse paga, salvar marcava as outras como
         // "Pago" sem data nem valor de pagamento.
         const primeiraAberta = data.find((b: any) => b.status !== 'Pago')
-        setSituacao(primeiraAberta?.status || 'Pendente')
+        const statusLido = primeiraAberta?.status || 'Pendente'
+        // SPEC-248: na Contas a Pagar, status antigo (Pendente, Pendente Registro, Remessa Enviada) é "Aberto"
+        setSituacao(EH_PAGAR ? (statusLido === 'Cancelado' ? 'Cancelado' : 'Aberto') : statusLido)
         setContaBancariaId(first.conta_bancaria_id || '')
         setObservacao(first.observacao || '')
         setParcelas(
@@ -213,7 +218,7 @@ export default function CadastrarDuplicata() {
     if (!vencPrimeiraParc) return ''
     const base = new Date(vencPrimeiraParc + 'T12:00:00')
     if (numeroParcela === 1) return vencPrimeiraParc
-    const diaNum = parseInt(dia, 10) || base.getDate()
+    const diaNum = base.getDate()
     const ano = base.getFullYear()
     const mes = base.getMonth() + (numeroParcela - 1)
     // "Dia 31" em mês curto vira o último dia do mês (antes pulava pro mês seguinte).
@@ -236,7 +241,7 @@ export default function CadastrarDuplicata() {
       ...prev,
       {
         parcela: proximaParcela,
-        valor: '',
+        valor: valorParcela,
         vencimento: calcularVencimento(proximaParcela),
         linhaDigitavel: '',
       },
@@ -553,11 +558,22 @@ export default function CadastrarDuplicata() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Pendente">Pendente</SelectItem>
-                  <SelectItem value="pendente_registro">Pendente Registro</SelectItem>
-                  <SelectItem value="Remessa Enviada">Remessa Enviada</SelectItem>
-                  <SelectItem value="Pago">Pago</SelectItem>
-                  <SelectItem value="Cancelado">Cancelado</SelectItem>
+                  {EH_PAGAR ? (
+                    <>
+                      <SelectItem value="Aberto">Aberto</SelectItem>
+                      <SelectItem value="Pago">Pago</SelectItem>
+                      {/* Cancelado: para DPL errada ou que mudou, sem excluir; some da consulta "A pagar (em aberto)" */}
+                      <SelectItem value="Cancelado">Cancelado</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="Pendente">Pendente</SelectItem>
+                      <SelectItem value="pendente_registro">Pendente Registro</SelectItem>
+                      <SelectItem value="Remessa Enviada">Remessa Enviada</SelectItem>
+                      <SelectItem value="Pago">Pago</SelectItem>
+                      <SelectItem value="Cancelado">Cancelado</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </Field>
@@ -605,15 +621,21 @@ export default function CadastrarDuplicata() {
                 value={totalParcAtingido ? '-' : `${proximaParcela}/${numParc}`}
               />
             </Field>
-            <Field label="Dia" span={2}>
-              <Input
-                type="number"
-                min={1}
-                max={31}
-                className="h-7 text-xs bg-slate-50"
-                value={dia}
-                onChange={(e) => setDia(e.target.value)}
-              />
+            <Field label="Valor da parcela" span={2}>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                  R$
+                </span>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0,00"
+                  className="h-7 text-xs bg-slate-50 pl-7 text-right"
+                  value={valorParcela}
+                  onChange={(e) => setValorParcela(e.target.value)}
+                />
+              </div>
             </Field>
             <Field label="Venc 1° Parc" span={3}>
               <Input
@@ -642,7 +664,7 @@ export default function CadastrarDuplicata() {
               <TableHeader className="bg-slate-50">
                 <TableRow className="h-8">
                   <TableHead className="p-1 text-center">Parcela</TableHead>
-                  <TableHead className="p-1 text-right">Valor da Parcela</TableHead>
+                  <TableHead className="p-1 text-right">Valor da Parcela (R$)</TableHead>
                   <TableHead className="p-1 text-center">Data Vencimento</TableHead>
                   <TableHead className="p-1">Linha Digitável</TableHead>
                   <TableHead className="p-1 w-8" />
