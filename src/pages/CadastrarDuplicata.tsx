@@ -88,8 +88,10 @@ export default function CadastrarDuplicata() {
 
   // Gerar Parcelas
   const [numParc, setNumParc] = useState('1')
-  // SPEC-248: antes era o campo "Dia" (dia do mês dos vencimentos, padrão 10) — o usuário usava como valor da conta.
-  // Agora é o valor de cada parcela; os vencimentos seguintes caem no mesmo dia do mês do "Venc 1° Parc".
+  // SPEC-248 (só Contas a Pagar): o campo "Dia" (dia do mês dos vencimentos, padrão 10) virou "Valor da parcela" —
+  // o usuário usava como valor da conta. Cada parcela adicionada já vem com o valor; os vencimentos seguintes caem no
+  // mesmo dia do mês do "Venc 1° Parc". A Contas a Receber continua com o campo "Dia".
+  const [dia, setDia] = useState('10')
   const [valorParcela, setValorParcela] = useState('')
   const [vencPrimeiraParc, setVencPrimeiraParc] = useState('')
   const [parcelas, setParcelas] = useState<ParcelaLinha[]>([])
@@ -218,7 +220,7 @@ export default function CadastrarDuplicata() {
     if (!vencPrimeiraParc) return ''
     const base = new Date(vencPrimeiraParc + 'T12:00:00')
     if (numeroParcela === 1) return vencPrimeiraParc
-    const diaNum = base.getDate()
+    const diaNum = EH_PAGAR ? base.getDate() : parseInt(dia, 10) || base.getDate()
     const ano = base.getFullYear()
     const mes = base.getMonth() + (numeroParcela - 1)
     // "Dia 31" em mês curto vira o último dia do mês (antes pulava pro mês seguinte).
@@ -241,7 +243,7 @@ export default function CadastrarDuplicata() {
       ...prev,
       {
         parcela: proximaParcela,
-        valor: valorParcela,
+        valor: EH_PAGAR ? valorParcela : '',
         vencimento: calcularVencimento(proximaParcela),
         linhaDigitavel: '',
       },
@@ -621,22 +623,35 @@ export default function CadastrarDuplicata() {
                 value={totalParcAtingido ? '-' : `${proximaParcela}/${numParc}`}
               />
             </Field>
-            <Field label="Valor da parcela" span={2}>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
-                  R$
-                </span>
+            {EH_PAGAR ? (
+              <Field label="Valor da parcela" span={2}>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+                    R$
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0,00"
+                    className="h-7 text-xs bg-slate-50 pl-7 text-right"
+                    value={valorParcela}
+                    onChange={(e) => setValorParcela(e.target.value)}
+                  />
+                </div>
+              </Field>
+            ) : (
+              <Field label="Dia" span={2}>
                 <Input
                   type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="0,00"
-                  className="h-7 text-xs bg-slate-50 pl-7 text-right"
-                  value={valorParcela}
-                  onChange={(e) => setValorParcela(e.target.value)}
+                  min={1}
+                  max={31}
+                  className="h-7 text-xs bg-slate-50"
+                  value={dia}
+                  onChange={(e) => setDia(e.target.value)}
                 />
-              </div>
-            </Field>
+              </Field>
+            )}
             <Field label="Venc 1° Parc" span={3}>
               <Input
                 type="date"
@@ -664,7 +679,7 @@ export default function CadastrarDuplicata() {
               <TableHeader className="bg-slate-50">
                 <TableRow className="h-8">
                   <TableHead className="p-1 text-center">Parcela</TableHead>
-                  <TableHead className="p-1 text-right">Valor da Parcela (R$)</TableHead>
+                  <TableHead className="p-1 text-right">{EH_PAGAR ? 'Valor da Parcela (R$)' : 'Valor da Parcela'}</TableHead>
                   <TableHead className="p-1 text-center">Data Vencimento</TableHead>
                   <TableHead className="p-1">Linha Digitável</TableHead>
                   <TableHead className="p-1 w-8" />
