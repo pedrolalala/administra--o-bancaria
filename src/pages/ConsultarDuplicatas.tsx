@@ -19,12 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { differenceInDays, parseISO } from 'date-fns'
-import { Pencil, Search, Play, Handshake, Download, Info } from 'lucide-react'
+import { Pencil, Search, Play, Handshake, Download, Info, Undo2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
-import { NOME_SISTEMA, TIPO_OPERACAO, TIPO_TRANSACAO, EH_PAGAR } from '@/lib/modo-sistema'
+import { NOME_SISTEMA, TIPO_OPERACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
+import { buscarDuplicatasNovas, mapaBoletoParcela } from '@/lib/financeiro-novo'
+import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 
 // SPEC-248: na Contas a Pagar, duplicata "Cancelado" (DPL errada ou que mudou) não conta como aberta nem some do banco.
 // (a Contas a Receber não mudou). Aceita "cancelado" minúsculo, que é como o banco grava em alguns fluxos.
@@ -38,6 +40,7 @@ export default function ConsultarDuplicatas() {
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set())
   const [showExecutar, setShowExecutar] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [showEstornar, setShowEstornar] = useState(false)
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   const [filtros, setFiltros] = useState({
@@ -94,71 +97,19 @@ export default function ConsultarDuplicatas() {
       all = all.concat(page || [])
       if (!page || page.length < PAGE) break
     }
-    // SPEC-245 (reunião 42, 05/11): as duplicatas da Connect (planilhas ContaReceber/ContaPagar do dia) moram em `transacoes`, não em `boletos`.
-    // A grade mostra as duas fontes no mesmo formato; as da Connect são só consulta (a baixa delas vem da planilha do dia). Canceladas não entram.
-    const doConnect: any[] = []
-    // SPEC-246: venda aprovada no sistema novo gera a parcela de projeto + o boleto + a transação em aberto (previsão do financeiro).
-    // A parcela que já aparece pelo boleto não pode aparecer de novo pela transação.
-    const parcelasComBoleto = new Set<string>(all.map((b: any) => b.parcela_id).filter(Boolean))
+    // SPEC-258 (Financeiro) Fase 5: as contas do modelo novo (legado da Connect + nativas) vêm de vw_financeiro_duplicatas e PODEM ser baixadas aqui
+    // (a carga da Connect de 05/11 foi a última; antes a baixa vinha da planilha do dia). O que tem boleto segue vindo do boleto
+    // (remessa/retorno/cobrança); o mapa liga o boleto à parcela do modelo novo para a baixa e o estorno atualizarem os dois.
+    let doFinanceiro: any[] = []
+    let mapaBoleto = new Map<string, string>()
     try {
-    for (let from = 0; ; from += PAGE) {
-      const { data: page, error } = await (supabase as any)
-        .from('transacoes')
-        .select(
-          `id, parcela_id, descricao, dt_emissao, dt_vencimento, dt_pagamento, vl_parcela, vl_pago, vl_desconto, vl_juros, status_pago, num_parc, tipo_pagamento, perfil,
-           negociacoes ( cod_duplicata, cod_venda, num_nota, cod_pessoa, nome_pessoa, razao_pessoa, contato_id, total_parc, empresas ( nome ), contatos ( nome ) )`,
-        )
-        .eq('tipo', TIPO_TRANSACAO)
-        .match(comPagas ? {} : { status_pago: 0 })
-        .neq('status_pago', 2)
-        .order('dt_vencimento', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, from + PAGE - 1)
-      if (error) {
-        toast({ title: 'Erro ao carregar duplicatas da Connect', description: error.message, variant: 'destructive' })
-        break
-      }
-      for (const t of page || []) {
-        if (t.parcela_id && parcelasComBoleto.has(t.parcela_id)) continue
-        const n = Array.isArray(t.negociacoes) ? t.negociacoes[0] : t.negociacoes
-        const contato = Array.isArray(n?.contatos) ? n?.contatos[0] : n?.contatos
-        const empresa = Array.isArray(n?.empresas) ? n?.empresas[0] : n?.empresas
-        doConnect.push({
-          id: `tx:${t.id}`,
-          _fonte: 'connect',
-          tipo_operacao: TIPO_OPERACAO,
-          tipo: n?.num_nota ? 'Nota Fiscal' : 'Normal',
-          status: t.status_pago === 1 ? 'Pago' : 'Pendente',
-          numero_documento: n?.cod_duplicata != null ? String(n.cod_duplicata) : '',
-          num_parcela: t.num_parc,
-          total_parcelas: n?.total_parc,
-          venda: n?.cod_venda != null ? String(n.cod_venda) : '',
-          fatura: n?.num_nota != null ? String(n.num_nota) : '',
-          // SPEC-245: nome da pessoa como a planilha da Connect diz (espelho); sem ela, o cadastro; nunca vazio
-          nome_pagador: n?.nome_pessoa || n?.razao_pessoa || contato?.nome || (n?.cod_pessoa != null ? `Pessoa ${n.cod_pessoa}` : ''),
-          emissao: t.dt_emissao,
-          vencimento: t.dt_vencimento,
-          data_pagamento: t.dt_pagamento,
-          valor: t.vl_parcela,
-          valor_pago: t.vl_pago,
-          juros_multa: t.vl_juros,
-          desconto: t.vl_desconto,
-          forma_pagamento: t.tipo_pagamento,
-          observacao: t.descricao,
-          perfil: t.perfil,
-          empresas: empresa ? { nome: empresa.nome } : null,
-          contato_id: n?.contato_id ?? null,
-          orcamentos: null,
-          conta_grupo_id: null,
-          nosso_numero: null,
-        })
-      }
-      if (!page || page.length < PAGE) break
-    }
+      mapaBoleto = await mapaBoletoParcela()
+      doFinanceiro = await buscarDuplicatasNovas(comPagas)
     } catch (e: any) {
-      toast({ title: 'Erro ao carregar duplicatas da Connect', description: e?.message || String(e), variant: 'destructive' })
+      toast({ title: 'Erro ao carregar as duplicatas do financeiro', description: e?.message || String(e), variant: 'destructive' })
     }
-    const todas = [...all, ...doConnect].sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')))
+    const boletosComParcela = all.map((b: any) => ({ ...b, _parcelaId: mapaBoleto.get(b.id) ?? null }))
+    const todas = [...boletosComParcela, ...doFinanceiro].sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')))
     setData(todas)
     setLoading(false)
   }
@@ -323,10 +274,10 @@ export default function ConsultarDuplicatas() {
   // selecionadas (ou vazio, pra localizar de la mesmo) -- fluxo pedido
   // explicitamente pelo usuario (SPEC-073).
   const handleExportar = () => {
-    // SPEC-245: as da Connect não existem em `boletos`; só as cadastradas aqui seguem para a tela de baixa
-    const ids = Array.from(selecionadas).filter((id) => !String(id).startsWith('tx:'))
+    // SPEC-258: as do financeiro novo (sem boleto) são baixadas pelo botão Executar; a tela Baixar Duplicata trabalha com boletos
+    const ids = Array.from(selecionadas).filter((id) => !String(id).startsWith('fp:'))
     if (selecionadas.size > 0 && ids.length === 0) {
-      toast({ title: 'Duplicata da Connect: só consulta', description: 'Marque uma duplicata cadastrada neste sistema para levar à tela de baixa.', variant: 'destructive' })
+      toast({ title: 'Use o botão Executar', description: 'Estas duplicatas não têm boleto: dê a baixa pelo botão Executar.', variant: 'destructive' })
       return
     }
     navigate('/baixar-duplicata', { state: { ids } })
@@ -343,15 +294,6 @@ export default function ConsultarDuplicatas() {
       })
       return
     }
-    // SPEC-245: duplicata da Connect é só consulta aqui; a baixa vem da planilha do dia
-    if (data.some((d) => selecionadas.has(d.id) && d._fonte === 'connect')) {
-      toast({
-        title: 'Duplicata da Connect: só consulta',
-        description: 'As duplicatas carregadas da Connect não são baixadas por aqui; a baixa chega pela planilha do dia. Desmarque-as para continuar.',
-        variant: 'destructive',
-      })
-      return
-    }
     // SPEC-165: não baixa de novo o que já está pago.
     const jaPagas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
     if (jaPagas.length > 0) {
@@ -363,6 +305,26 @@ export default function ConsultarDuplicatas() {
       return
     }
     setShowExecutar(true)
+  }
+
+  // SPEC-258: estorno de baixa (a baixa nunca é apagada; o estorno fica no histórico com o motivo)
+  const handleEstornar = () => {
+    const sel = data.filter((d) => selecionadas.has(d.id))
+    if (sel.length === 0) {
+      toast({ title: 'Selecione ao menos uma duplicata paga', variant: 'destructive' })
+      return
+    }
+    const naoPagas = sel.filter((d) => d.status !== 'Pago')
+    if (naoPagas.length > 0) {
+      toast({ title: 'Há duplicata sem baixa na seleção', description: 'Só dá para estornar o que já está pago. Desmarque as abertas.', variant: 'destructive' })
+      return
+    }
+    const semModeloNovo = sel.filter((d) => !d._parcelaId)
+    if (semModeloNovo.length > 0) {
+      toast({ title: 'Estorno indisponível para esta duplicata', description: 'Ela não existe no financeiro novo (boleto antigo). Desmarque para continuar.', variant: 'destructive' })
+      return
+    }
+    setShowEstornar(true)
   }
 
   // "Info": definido pelo usuário em 2026-08-20 (SPEC-073 P-2) -- detalhes
@@ -392,10 +354,10 @@ export default function ConsultarDuplicatas() {
     }
     const id = Array.from(selecionadas)[0]
     const duplicata = data.find((d) => d.id === id)
-    if (duplicata?._fonte === 'connect') {
+    if (duplicata?._fonte === 'financeiro') {
       toast({
-        title: 'Duplicata da Connect: só consulta',
-        description: 'Ela vem da planilha do dia e não é editada por aqui.',
+        title: 'Duplicata do financeiro: sem edição por aqui',
+        description: 'Ela pode ser baixada (Executar) e estornada; a edição dos dados vem em outra etapa.',
         variant: 'destructive',
       })
       return
@@ -456,6 +418,15 @@ export default function ConsultarDuplicatas() {
           >
             <Play className="h-4 w-4" />
             <span className="text-[10px]">Executar</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleEstornar}
+          >
+            <Undo2 className="h-4 w-4" />
+            <span className="text-[10px]">Estornar</span>
           </Button>
           <Button
             variant="ghost"
@@ -630,9 +601,9 @@ export default function ConsultarDuplicatas() {
       <div className="px-4 py-1 text-[11px] text-slate-500 bg-slate-50 border-b shrink-0">
         {EH_PAGAR
           ? filtros.tipoSituacao === 'Pago'
-            ? 'HISTÓRICO: contas já pagas (a lista de Contas a Pagar mostra só o que ainda falta pagar). Duplicatas da Connect, só consulta.'
-            : 'Contas a Pagar: só o que ainda falta pagar (duplicatas da Connect carregadas da planilha do dia, só consulta, e as cadastradas aqui). As já pagas estão em "Pagas (histórico)".'
-          : 'Esta lista mostra as duplicatas da Connect (carregadas da planilha do dia, só consulta) e as cadastradas neste sistema.'}
+            ? 'HISTÓRICO: contas já pagas (a lista de Contas a Pagar mostra só o que ainda falta pagar).'
+            : 'Contas a Pagar: só o que ainda falta pagar (legado da Connect, compras do sistema e as cadastradas aqui). Selecione e use Executar para dar baixa; Estornar desfaz uma baixa. As já pagas estão em "Pagas (histórico)".'
+          : 'Esta lista mostra o que ainda falta receber (legado da Connect, vendas do sistema e as cadastradas aqui). Selecione e use Executar para dar baixa; Estornar desfaz uma baixa.'}
       </div>
       <div className="flex-1 min-h-[280px] overflow-auto bg-white relative">
         <Table className="w-full text-xs whitespace-nowrap">
@@ -684,8 +655,8 @@ export default function ConsultarDuplicatas() {
                   }`}
                   onClick={() => toggleSelecionada(d.id)}
                   onDoubleClick={() => {
-                    if (d._fonte === 'connect') {
-                      toast({ title: 'Duplicata da Connect: só consulta', description: 'Ela vem da planilha do dia.' })
+                    if (d._fonte === 'financeiro') {
+                      toast({ title: 'Duplicata do financeiro', description: 'Use Executar para dar baixa ou Estornar para desfazer.' })
                       return
                     }
                     if (!d.conta_grupo_id) {
@@ -717,7 +688,7 @@ export default function ConsultarDuplicatas() {
                   </TableCell>
                   <TableCell
                     className="p-1 text-center border-r text-slate-500"
-                    title={`${d.tipo}${d._fonte === 'connect' ? ' — vem da Connect (planilha do dia), só consulta' : ' — cadastrada neste sistema'}`}
+                    title={`${d.tipo}${d._fonte === 'financeiro' ? ' — financeiro (legado da Connect ou venda/compra do sistema)' : ' — com boleto neste sistema'}`}
                   >
                     {d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
                   </TableCell>
@@ -885,6 +856,15 @@ export default function ConsultarDuplicatas() {
       <ExecutarBaixaModal
         open={showExecutar}
         onClose={() => setShowExecutar(false)}
+        duplicatas={data.filter((d) => selecionadas.has(d.id))}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData(pagasCarregadas)
+        }}
+      />
+      <EstornarBaixaModal
+        open={showEstornar}
+        onClose={() => setShowEstornar(false)}
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
         onSuccess={() => {
           setSelecionadas(new Set())

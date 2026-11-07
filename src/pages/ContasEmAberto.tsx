@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { EH_PAGAR, TIPO_ROTULO, TIPO_TRANSACAO } from '@/lib/modo-sistema'
+import { EH_PAGAR, TIPO_ROTULO, TIPO_OPERACAO } from '@/lib/modo-sistema'
 import {
   Table,
   TableBody,
@@ -73,6 +73,33 @@ function isVencimentoValido(dt: string | null): boolean {
   return ano >= 2000 && ano <= 2100
 }
 
+// SPEC-258 Fase 5: linha de vw_financeiro_duplicatas no formato que esta tela já usava (transacao + negociacao embutida)
+function doModeloNovo(r: any) {
+  const n = Number(r.numero_documento)
+  return {
+    id: r.parcela_id,
+    tipo: r.natureza === 'pagar' ? 'despesa' : 'receita',
+    descricao: r.observacao,
+    valor: r.valor,
+    dt_emissao: r.emissao,
+    dt_vencimento: r.vencimento,
+    num_parc: r.num_parcela,
+    perfil: r.perfil,
+    negociacoes: {
+      cod_duplicata: r.legado_cod_duplicata ?? (r.numero_documento && Number.isFinite(n) ? n : null),
+      contato_id: r.contato_id,
+      projeto_id: r.projeto_id,
+      total_parc: r.total_parcelas,
+      cod_pessoa: null,
+      nome_pessoa: r.nome_pagador,
+      razao_pessoa: null,
+      empresas: r.empresa_nome ? { nome: r.empresa_nome } : null,
+      contatos: null,
+      plano_de_contas: r.plano_contas_nome ? { nome: r.plano_contas_nome } : null,
+    },
+  }
+}
+
 function calcDiasAtraso(dt: string | null, hoje: Date): number | null {
   if (!isVencimentoValido(dt)) return null
   const dias = differenceInDays(hoje, parseISO(dt as string))
@@ -108,41 +135,21 @@ export default function ContasEmAberto() {
       // Cap silencioso de 1000 linhas do PostgREST (achado SPEC-081) -- com
       // ~2.382 linhas de status_pago = 0, e obrigatorio paginar em lotes.
       while (true) {
-        const { data: page, error } = await supabase
-          .from('transacoes')
-          .select(
-            `
-            id,
-            tipo,
-            descricao,
-            valor,
-            dt_emissao,
-            dt_vencimento,
-            num_parc,
-            perfil,
-            negociacoes (
-              cod_duplicata,
-              contato_id,
-              projeto_id,
-              total_parc,
-              cod_pessoa,
-              nome_pessoa,
-              razao_pessoa,
-              empresas ( nome ),
-              contatos ( nome ),
-              plano_de_contas ( nome )
-            )
-          `,
-          )
-          .eq('status_pago', 0)
-          // SPEC-225: cada sistema só lê o próprio tipo (despesa ou receita).
-          .eq('tipo', TIPO_TRANSACAO)
-          .order('id', { ascending: true })
+        // SPEC-258 (Financeiro) Fase 5: lê do modelo novo (parcelas ainda não pagas), não mais de `transacoes`:
+        // o que for baixado/estornado nas telas passa a valer aqui na hora.
+        const { data: pageNova, error } = await (supabase as any)
+          .from('vw_financeiro_duplicatas')
+          .select('*')
+          .eq('status', 'Pendente')
+          // SPEC-225: cada sistema só lê o próprio tipo (CP ou CR).
+          .eq('tipo_operacao', TIPO_OPERACAO)
+          .order('parcela_id', { ascending: true })
           .range(from, from + PAGE_SIZE_FETCH - 1)
 
         if (error) throw error
-        all = all.concat(page || [])
-        if (!page || page.length < PAGE_SIZE_FETCH) break
+        const page = (pageNova || []).map(doModeloNovo)
+        all = all.concat(page)
+        if (page.length < PAGE_SIZE_FETCH) break
         from += PAGE_SIZE_FETCH
       }
       setRawData(all)

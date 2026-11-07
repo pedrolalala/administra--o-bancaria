@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import {
   Dialog,
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { baixarLote, buscarContasBancarias, type ContaBancaria } from '@/lib/financeiro-novo'
 
 interface ExecutarBaixaModalProps {
   open: boolean
@@ -42,6 +43,18 @@ export function ExecutarBaixaModal({
   const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().slice(0, 10))
   const [jurosMulta, setJurosMulta] = useState('0')
   const [desconto, setDesconto] = useState('0')
+  // SPEC-258 Fase 5: a baixa também entra no financeiro novo, que exige a conta bancária do dinheiro
+  const [contas, setContas] = useState<ContaBancaria[]>([])
+  const [contaId, setContaId] = useState('')
+  const precisaConta = duplicatas.some((d) => d._parcelaId)
+
+  useEffect(() => {
+    if (!open) return
+    buscarContasBancarias()
+      .then(setContas)
+      .catch((e) => toast({ title: 'Não foi possível carregar as contas bancárias', description: e?.message, variant: 'destructive' }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const formatCurrency = (v: number | null | undefined) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
@@ -51,13 +64,32 @@ export function ExecutarBaixaModal({
       toast({ title: 'Informe a Forma de pagamento', variant: 'destructive' })
       return
     }
+    if (precisaConta && !contaId) {
+      toast({ title: 'Informe a conta bancária', description: 'O dinheiro entra (ou sai) por uma conta.', variant: 'destructive' })
+      return
+    }
     setSaving(true)
     try {
       const jurosVal = parseFloat(jurosMulta) || 0
       const descontoVal = parseFloat(desconto) || 0
 
+      // financeiro novo primeiro (tudo ou nada): se o banco recusar, nada foi baixado
+      const parcelaIds = Array.from(new Set(duplicatas.map((d) => d._parcelaId).filter(Boolean))) as string[]
+      if (parcelaIds.length > 0) {
+        await baixarLote({
+          parcelaIds,
+          data: dataPagamento,
+          forma: formaPagamento,
+          contaId,
+          juros: jurosVal,
+          desconto: descontoVal,
+        })
+      }
+      // o que tem boleto: o boleto também vira Pago (remessa/retorno olham o boleto)
+      const soBoletos = duplicatas.filter((d) => d._fonte !== 'financeiro')
+
       const results = await Promise.all(
-        duplicatas.map((d) => {
+        soBoletos.map((d) => {
           const valorPago = (Number(d.valor) || 0) + jurosVal - descontoVal
           return supabase
             .from('boletos')
@@ -68,6 +100,7 @@ export function ExecutarBaixaModal({
               juros_multa: jurosVal,
               desconto: descontoVal,
               valor_pago: valorPago,
+              ...(contaId ? { conta_bancaria_id: contaId } : {}),
             })
             .eq('id', d.id)
         }),
@@ -121,6 +154,25 @@ export function ExecutarBaixaModal({
               </SelectContent>
             </Select>
           </div>
+          {precisaConta && (
+            <div>
+              <label className="text-[10px] text-slate-500 font-medium uppercase">
+                Conta bancária *
+              </label>
+              <Select value={contaId} onValueChange={setContaId}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {contas.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <label className="text-[10px] text-slate-500 font-medium uppercase">
               Data pagamento
@@ -158,7 +210,7 @@ export function ExecutarBaixaModal({
           </div>
           <p className="text-[11px] text-slate-500">
             Juros/multas e desconto são aplicados a cada duplicata individualmente (valor pago =
-            valor da parcela + juros − desconto).
+            valor da parcela + juros − desconto). A baixa fica no histórico e pode ser estornada.
           </p>
         </div>
         <div className="flex justify-end gap-2 pt-2">

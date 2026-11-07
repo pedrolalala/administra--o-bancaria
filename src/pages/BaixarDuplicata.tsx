@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { baixarLote, mapaBoletoParcela } from '@/lib/financeiro-novo'
 import { differenceInDays, parseISO } from 'date-fns'
 import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
@@ -210,6 +211,26 @@ export default function BaixarDuplicata() {
         throw new Error(
           `${jaPagas.map((d) => d.numero_documento || d.nosso_numero).join(', ')} já tem baixa. Desmarque para continuar.`,
         )
+      }
+
+      // SPEC-258 (Financeiro) Fase 5: o que o financeiro novo espelha (venda aprovada, nota de entrada) é baixado lá também, tudo ou nada,
+      // ANTES de mexer no boleto. Só quando a situação escolhida é Pago.
+      if (situacao === 'Pago') {
+        const mapa = await mapaBoletoParcela()
+        const parcelaIds = selecionadasArr.map((d) => mapa.get(d.id)).filter(Boolean) as string[]
+        if (parcelaIds.length > 0) {
+          if (!contaBancariaId) {
+            throw new Error('Informe a conta bancária: o dinheiro entra (ou sai) por uma conta.')
+          }
+          await baixarLote({
+            parcelaIds,
+            data: dataPagamento,
+            forma: formaPagamento,
+            contaId: contaBancariaId,
+            juros: jurosVal,
+            desconto: descontoVal,
+          })
+        }
       }
 
       const results = await Promise.all(
