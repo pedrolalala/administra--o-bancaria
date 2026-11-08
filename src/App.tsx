@@ -16,6 +16,7 @@ const ConsultarDuplicatas = lazy(() => import('./pages/ConsultarDuplicatas'))
 const ContasEmAberto = lazy(() => import('./pages/ContasEmAberto'))
 const BaixarDuplicata = lazy(() => import('./pages/BaixarDuplicata'))
 const CadastrarDuplicata = lazy(() => import('./pages/CadastrarDuplicata'))
+const RegrasRT = lazy(() => import('./pages/RegrasRT'))
 const RetornoBoletos = lazy(() => import('./pages/RetornoBoletos'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Login = lazy(() => import('./pages/Login'))
@@ -75,6 +76,8 @@ const AppRoutes = () => {
           <Route path="/contas-em-aberto" element={<ContasEmAberto />} />
           <Route path="/baixar-duplicata" element={<BaixarDuplicata />} />
           <Route path="/cadastrar-duplicata" element={<CadastrarDuplicata />} />
+          {/* SPEC-258 Fase 4c: regras de RT dos arquitetos só em Contas a Pagar. */}
+          {EH_PAGAR && <Route path="/regras-rt" element={<RegrasRT />} />}
           {/* SPEC-225: cobrança Bradesco só existe em Contas a Receber. */}
           {!EH_PAGAR && (
             <>

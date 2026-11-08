@@ -20,7 +20,7 @@ export default function Layout() {
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
     ...(EH_PAGAR
-      ? []
+      ? [{ name: 'Regras de RT', path: '/regras-rt' }]
       : [
           { name: 'Controle de Boletos', path: '/boletos' },
           { name: 'Gerar Remessa', path: '/remessa' },
