@@ -21,6 +21,13 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
 interface ParcelaLinha {
@@ -38,13 +45,18 @@ const Field = ({
   label,
   children,
   span = 2,
+  acao,
 }: {
   label: string
   children: React.ReactNode
   span?: number
+  acao?: React.ReactNode
 }) => (
   <div className={`col-span-${span}`}>
-    <label className="text-[10px] text-slate-500 font-medium uppercase">{label}</label>
+    <div className="flex items-center justify-between">
+      <label className="text-[10px] text-slate-500 font-medium uppercase">{label}</label>
+      {acao}
+    </div>
     {children}
   </div>
 )
@@ -62,6 +74,11 @@ export default function CadastrarDuplicata() {
   const [contatos, setContatos] = useState<any[]>([])
   const [contasBancarias, setContasBancarias] = useState<any[]>([])
   const [planoContas, setPlanoContas] = useState<any[]>([])
+  // SPEC-262: criar Grupo / Sub grupo / Apropriação pela própria tela.
+  const [novoNivel, setNovoNivel] = useState<1 | 2 | 3 | null>(null)
+  const [novoNome, setNovoNome] = useState('')
+  const [novoTipo, setNovoTipo] = useState(EH_PAGAR ? 'despesa' : 'receita')
+  const [salvandoNovo, setSalvandoNovo] = useState(false)
 
   // Gerar Conta
   const [dataEmissao, setDataEmissao] = useState(new Date().toISOString().slice(0, 10))
@@ -103,7 +120,7 @@ export default function CadastrarDuplicata() {
       supabase.from('contas_bancarias').select('id, nome').order('nome'),
       supabase
         .from('plano_de_contas')
-        .select('id, nome, nivel, parent_id')
+        .select('id, nome, nivel, parent_id, tipo')
         .eq('ativo', true)
         .order('nome'),
     ]).then(([emp, usr, contas, plano]) => {
@@ -200,6 +217,61 @@ export default function CadastrarDuplicata() {
     () => planoContas.filter((p) => p.nivel === 3 && p.parent_id === subGrupoId),
     [planoContas, subGrupoId],
   )
+
+  const TIPOS_GRUPO: Record<string, string> = {
+    receita: 'Receita',
+    despesa: 'Despesa',
+    investimento: 'Investimento',
+    retirada: 'Retirada de lucro',
+    lucro: 'Lucro distribuído',
+  }
+
+  const abrirNovo = (nivel: 1 | 2 | 3) => {
+    setNovoNome('')
+    setNovoTipo(EH_PAGAR ? 'despesa' : 'receita')
+    setNovoNivel(nivel)
+  }
+
+  const salvarNovo = async () => {
+    if (!novoNivel) return
+    const nome = novoNome.trim()
+    if (!nome) {
+      toast({ title: 'Informe o nome', variant: 'destructive' })
+      return
+    }
+    const parent = novoNivel === 2 ? grupoId : novoNivel === 3 ? subGrupoId : null
+    setSalvandoNovo(true)
+    const { data: novoId, error } = await (supabase.rpc as any)('plano_contas_criar', {
+      p_nome: nome,
+      p_nivel: novoNivel,
+      p_parent_id: parent || null,
+      p_tipo: novoNivel === 1 ? novoTipo : null,
+    })
+    if (error) {
+      setSalvandoNovo(false)
+      toast({ title: 'Não foi possível criar', description: error.message, variant: 'destructive' })
+      return
+    }
+    const { data: plano } = await supabase
+      .from('plano_de_contas')
+      .select('id, nome, nivel, parent_id, tipo')
+      .eq('ativo', true)
+      .order('nome')
+    if (plano) setPlanoContas(plano)
+    if (novoNivel === 1) {
+      setGrupoId(novoId)
+      setSubGrupoId('')
+      setApropriacaoId('')
+    } else if (novoNivel === 2) {
+      setSubGrupoId(novoId)
+      setApropriacaoId('')
+    } else {
+      setApropriacaoId(novoId)
+    }
+    setSalvandoNovo(false)
+    setNovoNivel(null)
+    toast({ title: `${novoNivel === 1 ? 'Grupo' : novoNivel === 2 ? 'Sub grupo' : 'Apropriação'} "${nome.toUpperCase()}" criado` })
+  }
 
   // Na edição, reconstrói Grupo/Sub grupo a partir da Apropriação gravada
   // (antes os dois ficavam vazios e o select de Apropriação desabilitado).
@@ -499,7 +571,19 @@ export default function CadastrarDuplicata() {
               </Select>
             </Field>
 
-            <Field label="Grupo">
+            <Field
+            label="Grupo"
+            acao={
+              <button
+                type="button"
+                className="text-[10px] text-blue-600 hover:underline disabled:text-slate-300 disabled:no-underline"
+                disabled={false}
+                onClick={() => abrirNovo(1)}
+              >
+                + Novo
+              </button>
+            }
+          >
               <Select
                 value={grupoId}
                 onValueChange={(v) => {
@@ -520,7 +604,19 @@ export default function CadastrarDuplicata() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Sub grupo">
+            <Field
+            label="Sub grupo"
+            acao={
+              <button
+                type="button"
+                className="text-[10px] text-blue-600 hover:underline disabled:text-slate-300 disabled:no-underline"
+                disabled={!grupoId}
+                onClick={() => abrirNovo(2)}
+              >
+                + Novo
+              </button>
+            }
+          >
               <Select
                 value={subGrupoId}
                 onValueChange={(v) => {
@@ -540,7 +636,19 @@ export default function CadastrarDuplicata() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Apropriação">
+            <Field
+            label="Apropriação"
+            acao={
+              <button
+                type="button"
+                className="text-[10px] text-blue-600 hover:underline disabled:text-slate-300 disabled:no-underline"
+                disabled={!subGrupoId}
+                onClick={() => abrirNovo(3)}
+              >
+                + Novo
+              </button>
+            }
+          >
               <Select value={apropriacaoId} onValueChange={setApropriacaoId}>
                 <SelectTrigger className="h-7 text-xs bg-slate-50" disabled={!subGrupoId}>
                   <SelectValue placeholder="-" />
@@ -760,6 +868,66 @@ export default function CadastrarDuplicata() {
           </Button>
         </div>
       </div>
+
+      {/* SPEC-262: criar Grupo / Sub grupo / Apropriação */}
+      <Dialog open={novoNivel !== null} onOpenChange={(o) => !o && !salvandoNovo && setNovoNivel(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {novoNivel === 1 ? 'Novo grupo' : novoNivel === 2 ? 'Novo sub grupo' : 'Nova apropriação'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {novoNivel !== 1 && (
+              <p className="text-xs text-slate-500">
+                Será criado dentro de{' '}
+                <b>
+                  {novoNivel === 2
+                    ? gruposNivel1.find((g) => g.id === grupoId)?.nome
+                    : subGruposNivel2.find((g) => g.id === subGrupoId)?.nome}
+                </b>
+                .
+              </p>
+            )}
+            <div>
+              <label className="text-[10px] text-slate-500 font-medium uppercase">Nome</label>
+              <Input
+                autoFocus
+                className="h-8 text-sm"
+                maxLength={80}
+                placeholder={novoNivel === 2 ? 'Ex.: Obra São Paulo' : ''}
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+              />
+            </div>
+            {novoNivel === 1 && (
+              <div>
+                <label className="text-[10px] text-slate-500 font-medium uppercase">Tipo</label>
+                <Select value={novoTipo} onValueChange={setNovoTipo}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TIPOS_GRUPO).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" disabled={salvandoNovo} onClick={() => setNovoNivel(null)}>
+              Cancelar
+            </Button>
+            <Button size="sm" disabled={salvandoNovo} onClick={salvarNovo}>
+              {salvandoNovo ? 'Criando...' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
