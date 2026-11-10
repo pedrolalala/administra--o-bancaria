@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
+import AntecipacaoForm from '@/components/duplicatas/AntecipacaoForm'
 
 interface ParcelaLinha {
   // SPEC-165: id da linha já gravada (edição) e se ela já foi paga --
@@ -61,7 +62,7 @@ const Field = ({
   </div>
 )
 
-export default function CadastrarDuplicata() {
+function FormularioDuplicata() {
   const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -447,7 +448,7 @@ export default function CadastrarDuplicata() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] w-full bg-slate-50 overflow-hidden text-sm">
+    <div className="flex flex-col h-full w-full bg-slate-50 overflow-hidden text-sm">
       <div className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm z-10 shrink-0">
         <h1 className="text-lg font-semibold text-slate-800">
           {isEditing ? 'Editar Duplicata' : 'Cadastrar Duplicatas'}
@@ -928,6 +929,34 @@ export default function CadastrarDuplicata() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// SPEC-270 Fase 1: em Contas a Receber, novo cadastro escolhe a modalidade — Duplicata (parcelas) ou Antecipação de pagamento.
+// Contas a Pagar segue só com duplicata até a unificação com o pagamento antecipado de fornecedor (SPEC-215).
+export default function CadastrarDuplicata() {
+  const [searchParams] = useSearchParams()
+  const editando = !!searchParams.get('id')
+  const [modalidade, setModalidade] = useState<'duplicata' | 'antecipacao'>('duplicata')
+  const escolhe = !EH_PAGAR && !editando
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-56px)] w-full">
+      {escolhe && (
+        <div className="bg-white border-b px-4 py-1.5 flex items-center gap-2 shrink-0 text-xs">
+          <span className="text-slate-500 mr-1">Modalidade:</span>
+          <Button size="sm" className="h-7" variant={modalidade === 'duplicata' ? 'default' : 'outline'} onClick={() => setModalidade('duplicata')}>
+            Duplicata
+          </Button>
+          <Button size="sm" className="h-7" variant={modalidade === 'antecipacao' ? 'default' : 'outline'} onClick={() => setModalidade('antecipacao')}>
+            Antecipação de pagamento
+          </Button>
+        </div>
+      )}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {escolhe && modalidade === 'antecipacao' ? <AntecipacaoForm /> : <FormularioDuplicata />}
+      </div>
     </div>
   )
 }

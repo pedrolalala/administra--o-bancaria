@@ -690,7 +690,9 @@ export default function ConsultarDuplicatas() {
                     className="p-1 text-center border-r text-slate-500"
                     title={`${d.tipo}${d._fonte === 'financeiro' ? ' — financeiro (legado da Connect ou venda/compra do sistema)' : ' — com boleto neste sistema'}`}
                   >
-                    {d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
+                    {d.especie === 'adiantamento' ? (
+                      <span className="font-semibold text-amber-700" title="Antecipação de pagamento (SPEC-270)">AT</span>
+                    ) : d.tipo === 'Nota Fiscal' ? 'F' : 'N'}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r font-medium text-slate-700">
                     {d.status === 'Pago' ? 'P' : ehCancelada(d.status) ? 'C' : 'A'}

@@ -36,6 +36,8 @@ export function paraLinhaDaGrade(r: any) {
     _parcelaId: r.parcela_id as string,
     tipo_operacao: r.tipo_operacao,
     tipo: r.tipo,
+    // SPEC-270: 'adiantamento' = antecipação de pagamento (selo na grade)
+    especie: r.especie ?? null,
     status: r.status === 'Pago' ? 'Pago' : 'Pendente',
     numero_documento: r.numero_documento || '',
     num_parcela: r.num_parcela,
@@ -129,4 +131,36 @@ export async function estornarParcelas(parcelaIds: string[], motivo: string): Pr
     if (e2) throw e2
   }
   return ativas.length
+}
+
+/** SPEC-270 Fase 1 (só Contas a Receber): lança uma antecipação de pagamento já recebida na data (título adiantamento + baixa). */
+export async function lancarAntecipacao(args: {
+  empresaId: string
+  perfil: string | null
+  clienteId: string
+  responsavelId: string
+  emissao: string
+  dataPagamento: string
+  valor: number
+  planoContasId: string
+  contaBancariaId: string
+  forma: string | null
+  observacao: string | null
+}): Promise<string> {
+  const { data, error } = await (supabase as any).rpc('financeiro_lancar_antecipacao', {
+    p_natureza: 'receber',
+    p_empresa_id: args.empresaId,
+    p_perfil: args.perfil,
+    p_contato_id: args.clienteId,
+    p_responsavel_id: args.responsavelId,
+    p_emissao: args.emissao,
+    p_data_pagamento: args.dataPagamento,
+    p_valor: args.valor,
+    p_plano_contas_id: args.planoContasId,
+    p_conta_bancaria_id: args.contaBancariaId,
+    p_forma: args.forma,
+    p_observacao: args.observacao,
+  })
+  if (error) throw error
+  return data as string
 }
