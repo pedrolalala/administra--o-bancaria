@@ -18,6 +18,8 @@ const ContasEmAberto = lazy(() => import('./pages/ContasEmAberto'))
 const BaixarDuplicata = lazy(() => import('./pages/BaixarDuplicata'))
 const CadastrarDuplicata = lazy(() => import('./pages/CadastrarDuplicata'))
 const RegrasRT = lazy(() => import('./pages/RegrasRT'))
+const Antecipacoes = lazy(() => import('./pages/Antecipacoes'))
+const NovaAntecipacao = lazy(() => import('./pages/NovaAntecipacao'))
 const RetornoBoletos = lazy(() => import('./pages/RetornoBoletos'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Login = lazy(() => import('./pages/Login'))
@@ -97,6 +99,9 @@ const AppRoutes = () => {
           <Route path="/contas-em-aberto" element={<ContasEmAberto />} />
           <Route path="/baixar-duplicata" element={<BaixarDuplicata />} />
           <Route path="/cadastrar-duplicata" element={<CadastrarDuplicata />} />
+          {/* SPEC-270: aba Antecipações (cliente no Receber, fornecedor no Pagar) */}
+          <Route path="/antecipacoes" element={<Antecipacoes />} />
+          {!EH_PAGAR && <Route path="/antecipacoes/nova" element={<NovaAntecipacao />} />}
           {/* SPEC-258 Fase 4c: regras de RT dos arquitetos só em Contas a Pagar. */}
           {EH_PAGAR && (
             <Route

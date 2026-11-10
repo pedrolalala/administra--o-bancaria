@@ -102,8 +102,8 @@ export default function AntecipacaoForm() {
         forma: forma || null,
         observacao: observacao || null,
       })
-      toast({ title: 'Antecipação lançada', description: 'Ela aparece em Consultar Duplicatas como antecipada.' })
-      navigate('/duplicatas')
+      toast({ title: 'Antecipação lançada', description: 'Ela aparece na aba Antecipações e em Consultar Duplicatas (selo AT).' })
+      navigate('/antecipacoes')
     } catch (e: any) {
       toast({ title: 'Não foi possível lançar', description: e?.message || String(e), variant: 'destructive' })
     } finally {
@@ -192,7 +192,7 @@ export default function AntecipacaoForm() {
           Situação: não se preenche — a antecipação fica em carteira como recebida na data do pagamento.
         </p>
         <div className="flex justify-end gap-2 mt-3">
-          <Button variant="outline" size="sm" onClick={() => navigate('/duplicatas')} disabled={salvando}>Cancelar</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/antecipacoes')} disabled={salvando}>Cancelar</Button>
           <Button size="sm" onClick={salvar} disabled={salvando}>{salvando ? 'Lançando...' : 'Lançar antecipação'}</Button>
         </div>
       </div>

@@ -64,15 +64,8 @@ const lerValor = (v: string) => {
   return parseFloat(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t) || 0
 }
 
-export function PagamentosAntecipadosDialog({
-  open,
-  onOpenChange,
-  empresas,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  empresas: { id: string; nome: string }[]
-}) {
+// SPEC-270: o conteúdo virou um painel reutilizável — a aba "Antecipações" (Contas a Pagar) e o diálogo de Contas em Aberto mostram o mesmo.
+export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: string; nome: string }[] }) {
   const { toast } = useToast()
   const [lista, setLista] = useState<PagamentoAntecipado[]>([])
   const [carregando, setCarregando] = useState(false)
@@ -115,8 +108,8 @@ export function PagamentosAntecipadosDialog({
   }, [toast])
 
   useEffect(() => {
-    if (open) carregar()
-  }, [open, carregar])
+    carregar()
+  }, [carregar])
 
   useEffect(() => {
     if (!buscaForn.trim() || fornecedor) {
@@ -201,16 +194,7 @@ export function PagamentosAntecipadosDialog({
   const podeLancar = !!fornecedor && !!empresaId && lerValor(valor) > 0 && !!dataPagamento
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Pagamentos antecipados</DialogTitle>
-          <DialogDescription>
-            Valor pago ao fornecedor antes da nota fiscal (sinal ou 100%). Quando a nota chegar, a Entrada
-            de Nota Fiscal mostra o saldo para vincular: a nota desconta o valor usado.
-          </DialogDescription>
-        </DialogHeader>
-
+    <div className="space-y-3">
         {!lancando ? (
           <div>
             <Button size="sm" onClick={() => setLancando(true)}>
@@ -412,6 +396,30 @@ export function PagamentosAntecipadosDialog({
             )}
           </TableBody>
         </Table>
+    </div>
+  )
+}
+
+export function PagamentosAntecipadosDialog({
+  open,
+  onOpenChange,
+  empresas,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  empresas: { id: string; nome: string }[]
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Pagamentos antecipados</DialogTitle>
+          <DialogDescription>
+            Valor pago ao fornecedor antes da nota fiscal (sinal ou 100%). Quando a nota chegar, a Entrada
+            de Nota Fiscal mostra o saldo para vincular: a nota desconta o valor usado.
+          </DialogDescription>
+        </DialogHeader>
+        {open && <PagamentosAntecipadosPainel empresas={empresas} />}
       </DialogContent>
     </Dialog>
   )

@@ -21,6 +21,8 @@ export default function Layout() {
     { name: 'Consultar Duplicatas', path: '/duplicatas' },
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
+    // SPEC-270: antecipações (cliente no Receber, fornecedor no Pagar)
+    { name: 'Antecipações', path: '/antecipacoes' },
     ...(EH_PAGAR
       ? // SPEC-269: "Regras de RT" só aparece para quem pode emitir LT/comissão.
         podeEmitirRT
