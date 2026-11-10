@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import { Building2, LogOut, Menu } from 'lucide-react'
 import logoUrl from '@/assets/logotipo-verticalv1preto-b4de9.png'
 import { useAuth } from '@/hooks/use-auth'
+import { usePodeEmitirRT } from '@/hooks/use-pode-emitir-rt'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -10,6 +11,7 @@ import { EH_PAGAR, NOME_SISTEMA, SLUG_HUB } from '@/lib/modo-sistema'
 
 export default function Layout() {
   const { user, signOut } = useAuth()
+  const podeEmitirRT = usePodeEmitirRT()
   const location = useLocation()
   const pathname = location.pathname
 
@@ -20,7 +22,10 @@ export default function Layout() {
     { name: 'Contas em Aberto', path: '/contas-em-aberto' },
     { name: 'Cadastrar Duplicatas', path: '/cadastrar-duplicata' },
     ...(EH_PAGAR
-      ? [{ name: 'Regras de RT', path: '/regras-rt' }]
+      ? // SPEC-269: "Regras de RT" só aparece para quem pode emitir LT/comissão.
+        podeEmitirRT
+        ? [{ name: 'Regras de RT', path: '/regras-rt' }]
+        : []
       : [
           { name: 'Controle de Boletos', path: '/boletos' },
           { name: 'Gerar Remessa', path: '/remessa' },

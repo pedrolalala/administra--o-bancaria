@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { usePodeEmitirRT } from '@/hooks/use-pode-emitir-rt'
 import Layout from './components/Layout'
 import { EH_PAGAR, MODO, NOME_SISTEMA } from '@/lib/modo-sistema'
 
@@ -49,6 +50,26 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
+// SPEC-269: LT/comissão (RT) só para quem tem o acesso 'financeiro-rt-comissao'. A trava real é do banco.
+const RotaEmitirRT = ({ children }: { children: React.ReactNode }) => {
+  const pode = usePodeEmitirRT()
+  if (pode === null) return <LoadingFallback />
+  if (!pode) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="max-w-sm w-full text-center space-y-3">
+          <h1 className="text-lg font-semibold">Acesso restrito</h1>
+          <p className="text-sm text-muted-foreground">
+            As regras de RT e comissão não estão liberadas para a sua conta. Fale com um
+            administrador se precisar delas.
+          </p>
+        </div>
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
 const AppRoutes = () => {
   // SPEC-225: build sem modo = endereço antigo, só a página de escolha.
   if (!MODO) {
@@ -77,7 +98,16 @@ const AppRoutes = () => {
           <Route path="/baixar-duplicata" element={<BaixarDuplicata />} />
           <Route path="/cadastrar-duplicata" element={<CadastrarDuplicata />} />
           {/* SPEC-258 Fase 4c: regras de RT dos arquitetos só em Contas a Pagar. */}
-          {EH_PAGAR && <Route path="/regras-rt" element={<RegrasRT />} />}
+          {EH_PAGAR && (
+            <Route
+              path="/regras-rt"
+              element={
+                <RotaEmitirRT>
+                  <RegrasRT />
+                </RotaEmitirRT>
+              }
+            />
+          )}
           {/* SPEC-225: cobrança Bradesco só existe em Contas a Receber. */}
           {!EH_PAGAR && (
             <>
