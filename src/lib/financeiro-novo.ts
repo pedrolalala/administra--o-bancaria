@@ -38,6 +38,8 @@ export function paraLinhaDaGrade(r: any) {
     tipo: r.tipo,
     // SPEC-270: 'adiantamento' = antecipação de pagamento (selo na grade)
     especie: r.especie ?? null,
+    // SPEC-290: duplicata (ex.: da Connect) já usada para cobrir uma nota de compra do sistema: "Pedido 1985 / NF 11221" (só leitura)
+    pago_antecipado: (r.pago_antecipado as string | null) ?? null,
     status: r.status === 'Pago' ? 'Pago' : 'Pendente',
     numero_documento: r.numero_documento || '',
     num_parcela: r.num_parcela,

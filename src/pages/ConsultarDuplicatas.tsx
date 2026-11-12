@@ -72,6 +72,8 @@ export default function ConsultarDuplicatas() {
     fatura: '',
     duplicata: '',
     boleto: '',
+    // SPEC-290: filtra pelo pedido/NF do "Pago antecipado" (duplicata já usada para cobrir uma nota de compra)
+    pedido: '',
     pessoa: '',
   })
   // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
@@ -197,6 +199,7 @@ export default function ConsultarDuplicatas() {
         !d.numero_documento?.toLowerCase().includes(filtros.duplicata.toLowerCase())
       )
         return false
+      if (filtros.pedido && !(d.pago_antecipado ?? '').toLowerCase().includes(filtros.pedido.toLowerCase())) return false
       // SPEC-165: Venda / Fatura / Boleto antes não filtravam nada.
       const contem = (valor: any, termo: string) =>
         String(valor || '')
@@ -613,7 +616,17 @@ export default function ConsultarDuplicatas() {
               onChange={(e) => setFiltros({ ...filtros, boleto: e.target.value })}
             />
           </div>
-          <div className="col-span-8">
+          <div className="col-span-2">
+            <label className="text-[10px] text-slate-500 font-medium uppercase" title="Pedido ou NF do pagamento antecipado">
+              Pedido (antec.)
+            </label>
+            <Input
+              className="h-7 text-xs bg-white"
+              value={filtros.pedido}
+              onChange={(e) => setFiltros({ ...filtros, pedido: e.target.value })}
+            />
+          </div>
+          <div className="col-span-6">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Pessoa</label>
             <CampoPessoa
               texto={filtros.pessoa}
@@ -726,6 +739,14 @@ export default function ConsultarDuplicatas() {
                   </TableCell>
                   <TableCell className="p-1 border-r font-mono">
                     {d.numero_documento || '-'}
+                    {d.pago_antecipado && (
+                      <span
+                        className="ml-1 rounded bg-sky-100 px-1 font-sans text-[10px] font-semibold text-sky-800 whitespace-nowrap"
+                        title="Esta duplicata (pagamento já feito) cobre uma nota de compra do sistema: não abra outro Contas a Pagar para ela."
+                      >
+                        Pago antecipado — {d.pago_antecipado}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="p-1 text-right border-r">{d.num_parcela || 1}</TableCell>
                   <TableCell className="p-1 text-right border-r">{d.total_parcelas || 1}</TableCell>
