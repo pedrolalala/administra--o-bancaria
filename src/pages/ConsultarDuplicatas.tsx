@@ -183,7 +183,7 @@ export default function ConsultarDuplicatas() {
       if (pessoaSel) {
         const orc = getOrcamento(d)
         if (pessoaSel.projetoId) {
-          if (orc?.projeto_id !== pessoaSel.projetoId) return false
+          if ((orc?.projeto_id ?? d.projeto_id) !== pessoaSel.projetoId) return false
         } else if (
           d.contato_id !== pessoaSel.contatoId &&
           orc?.cliente_id !== pessoaSel.contatoId &&

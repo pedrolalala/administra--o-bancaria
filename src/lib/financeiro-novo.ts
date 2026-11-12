@@ -57,6 +57,8 @@ export function paraLinhaDaGrade(r: any) {
     perfil: r.perfil,
     empresas: r.empresa_nome ? { nome: r.empresa_nome } : null,
     contato_id: r.contato_id ?? null,
+    // SPEC-288 (E): a busca por projeto da consulta precisa do projeto da própria parcela (a linha do financeiro novo não traz orcamentos)
+    projeto_id: r.projeto_id ?? null,
     orcamentos: null,
     conta_grupo_id: null,
     nosso_numero: null,
