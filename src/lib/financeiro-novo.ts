@@ -164,3 +164,26 @@ export async function lancarAntecipacao(args: {
   if (error) throw error
   return data as string
 }
+
+export interface ParcelaDoAcordo {
+  vencimento: string // aaaa-mm-dd
+  valor: number
+  forma?: string
+}
+
+/** SPEC-287: acordo (renegociação). As parcelas de origem ficam 'renegociadas' (nunca apagadas) e nasce um título novo; tudo numa transação no banco. */
+export async function criarAcordo(
+  parcelaIds: string[],
+  plano: ParcelaDoAcordo[],
+  desconto: number,
+  motivo: string,
+): Promise<{ grupo_acordo: number; titulo_id: string; parcelas_novas: number; parcelas_origem: number; com_boleto_emitido: number }> {
+  const { data, error } = await (supabase as any).rpc('financeiro_criar_acordo', {
+    p_parcelas: parcelaIds,
+    p_novo_plano: plano,
+    p_desconto: desconto || 0,
+    p_motivo: motivo.trim(),
+  })
+  if (error) throw error
+  return data
+}

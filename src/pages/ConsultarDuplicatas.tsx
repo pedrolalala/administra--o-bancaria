@@ -27,6 +27,7 @@ import { NOME_SISTEMA, TIPO_OPERACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
 import { buscarDuplicatasNovas, mapaBoletoParcela } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
+import { AcordoModal } from '@/components/duplicatas/AcordoModal'
 
 // SPEC-248: na Contas a Pagar, duplicata "Cancelado" (DPL errada ou que mudou) não conta como aberta nem some do banco.
 // (a Contas a Receber não mudou). Aceita "cancelado" minúsculo, que é como o banco grava em alguns fluxos.
@@ -41,6 +42,7 @@ export default function ConsultarDuplicatas() {
   const [showExecutar, setShowExecutar] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showEstornar, setShowEstornar] = useState(false)
+  const [showAcordo, setShowAcordo] = useState(false) // SPEC-287
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   const [filtros, setFiltros] = useState({
@@ -327,6 +329,29 @@ export default function ConsultarDuplicatas() {
     setShowEstornar(true)
   }
 
+  // SPEC-287 (Reunião 47): acordo = renegociar as parcelas selecionadas (só as abertas do financeiro novo, da mesma pessoa)
+  const handleAcordo = () => {
+    const sel = data.filter((d) => selecionadas.has(d.id))
+    if (sel.length === 0) {
+      toast({ title: 'Selecione as parcelas do acordo', description: 'Marque as duplicatas abertas que serão renegociadas.', variant: 'destructive' })
+      return
+    }
+    if (sel.some((d) => d.status === 'Pago')) {
+      toast({ title: 'Há duplicata paga na seleção', description: 'Só entram no acordo as parcelas abertas. Desmarque as pagas.', variant: 'destructive' })
+      return
+    }
+    if (sel.some((d) => !d._parcelaId)) {
+      toast({ title: 'Acordo indisponível para esta duplicata', description: 'Ela não existe no financeiro novo (boleto antigo). Desmarque para continuar.', variant: 'destructive' })
+      return
+    }
+    const pessoas = new Set(sel.map((d) => d.contato_id ?? d.nome_pagador))
+    if (pessoas.size > 1) {
+      toast({ title: 'Pessoas diferentes na seleção', description: 'Um acordo junta parcelas de um só cliente (ou fornecedor).', variant: 'destructive' })
+      return
+    }
+    setShowAcordo(true)
+  }
+
   // "Info": definido pelo usuário em 2026-08-20 (SPEC-073 P-2) -- detalhes
   // completos da duplicata selecionada, exige exatamente 1.
   const handleInfo = () => {
@@ -432,7 +457,7 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
-            onClick={() => handleNaoImplementado('Acordo')}
+            onClick={handleAcordo}
           >
             <Handshake className="h-4 w-4" />
             <span className="text-[10px]">Acordo</span>
@@ -867,6 +892,15 @@ export default function ConsultarDuplicatas() {
       <EstornarBaixaModal
         open={showEstornar}
         onClose={() => setShowEstornar(false)}
+        duplicatas={data.filter((d) => selecionadas.has(d.id))}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData(pagasCarregadas)
+        }}
+      />
+      <AcordoModal
+        open={showAcordo}
+        onClose={() => setShowAcordo(false)}
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
         onSuccess={() => {
           setSelecionadas(new Set())
