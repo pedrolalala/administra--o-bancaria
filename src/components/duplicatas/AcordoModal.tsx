@@ -75,8 +75,11 @@ export function AcordoModal({ open, onClose, duplicatas, onSuccess }: Props) {
   }, [open, qtd, entradaPct, primeira, intervalo, formaEntrada, formaResto, liquido])
 
   const somaNova = useMemo(() => r2(linhas.reduce((s, l) => s + num(l.valor), 0)), [linhas])
-  const confere = Math.abs(somaNova - liquido) <= 0.01 && liquido > 0
-  const semDatas = linhas.some((l) => !l.vencimento || num(l.valor) <= 0)
+  // SPEC-288: total das parcelas = 0 (ex.: devolução + aquisição) é compensação: as parcelas se anulam, sem parcela nova
+  const compensacao = Math.abs(total) <= 0.01
+  const negativo = total < -0.01
+  const confere = compensacao ? descontoNum === 0 : !negativo && Math.abs(somaNova - liquido) <= 0.01 && liquido > 0
+  const semDatas = compensacao ? false : linhas.some((l) => !l.vencimento || num(l.valor) <= 0)
   const comBoleto = duplicatas.filter((d) => d.boleto_id).length
 
   const confirmar = async () => {
@@ -89,7 +92,9 @@ export function AcordoModal({ open, onClose, duplicatas, onSuccess }: Props) {
       })
     setSaving(true)
     try {
-      const plano: ParcelaDoAcordo[] = linhas.map((l) => ({ vencimento: l.vencimento, valor: num(l.valor), forma: l.forma }))
+      const plano: ParcelaDoAcordo[] = compensacao
+        ? []
+        : linhas.map((l) => ({ vencimento: l.vencimento, valor: num(l.valor), forma: l.forma }))
       const ids = Array.from(new Set(duplicatas.map((d) => d._parcelaId).filter(Boolean))) as string[]
       const r = await criarAcordo(ids, plano, descontoNum, motivo)
       toast({
@@ -131,6 +136,20 @@ export function AcordoModal({ open, onClose, duplicatas, onSuccess }: Props) {
           </p>
         )}
 
+        {compensacao && (
+          <p className="rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-800">
+            Compensação: as parcelas selecionadas se anulam (total {brl(total)}). Nenhuma parcela nova será criada; todas ficam
+            "renegociadas" e ligadas ao acordo. Informe só o motivo.
+          </p>
+        )}
+        {negativo && (
+          <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+            O total das parcelas é negativo ({brl(total)}): sobra crédito do cliente e essa situação ainda não tem regra. Desmarque
+            parcelas até o total ficar zero (compensação) ou positivo (novo plano).
+          </p>
+        )}
+
+        {!compensacao && !negativo && (<>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className={campo}>Desconto (R$)</label>
@@ -189,6 +208,7 @@ export function AcordoModal({ open, onClose, duplicatas, onSuccess }: Props) {
             {confere ? ' ✓' : ' — a soma precisa fechar.'}
           </p>
         </div>
+        </>)}
 
         <div className="space-y-1">
           <label className={campo}>Motivo do acordo *</label>
@@ -206,7 +226,7 @@ export function AcordoModal({ open, onClose, duplicatas, onSuccess }: Props) {
             Cancelar
           </Button>
           <Button size="sm" onClick={confirmar} disabled={saving || !motivo.trim() || !confere || semDatas}>
-            {saving ? 'Criando...' : 'Confirmar acordo'}
+            {saving ? 'Criando...' : compensacao ? 'Confirmar compensação' : 'Confirmar acordo'}
           </Button>
         </div>
       </DialogContent>
