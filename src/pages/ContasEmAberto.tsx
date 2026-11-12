@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useFiltroPersistido } from '@/hooks/use-filtro-persistido'
 import { supabase } from '@/lib/supabase/client'
 import { EH_PAGAR, TIPO_ROTULO, TIPO_OPERACAO } from '@/lib/modo-sistema'
 import {
@@ -117,8 +118,8 @@ export default function ContasEmAberto() {
   const [antecipadosAberto, setAntecipadosAberto] = useState(false)
 
   // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
-  const [pessoaSel, setPessoaSel] = useState<PessoaSelecionada | null>(null)
-  const [filtros, setFiltros] = useState({
+  const [pessoaSel, setPessoaSel] = useFiltroPersistido<PessoaSelecionada | null>('aberto-pessoa', null)
+  const [filtros, setFiltros] = useFiltroPersistido('aberto', {
     empresa: 'Todas',
     perfil: 'todos',
     situacao: 'Todos',

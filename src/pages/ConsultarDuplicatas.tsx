@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useFiltroPersistido } from '@/hooks/use-filtro-persistido'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -45,7 +46,8 @@ export default function ConsultarDuplicatas() {
   const [showAcordo, setShowAcordo] = useState(false) // SPEC-287
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
-  const [filtros, setFiltros] = useState({
+  // SPEC-288: os filtros ficam guardados na sessão: ao ir para Antecipações e voltar, não se perdem
+  const [filtros, setFiltros] = useFiltroPersistido('consulta', {
     // Achado 2026-08-20: filtro de empresa vinha travado em 'ISLIGHT' por
     // padrão -- qualquer duplicata de outra empresa (FOCO, SLIDE, LUCENERA)
     // ficava invisível na primeira tela ("Nenhum registro encontrado"),
@@ -73,7 +75,7 @@ export default function ConsultarDuplicatas() {
     pessoa: '',
   })
   // SPEC-231 E1: cadastro escolhido na busca (dois cliques no campo Pessoa)
-  const [pessoaSel, setPessoaSel] = useState<PessoaSelecionada | null>(null)
+  const [pessoaSel, setPessoaSel] = useFiltroPersistido<PessoaSelecionada | null>('consulta-pessoa', null)
 
   const [pagasCarregadas, setPagasCarregadas] = useState(false)
   // a grade desenha no máximo `limite` linhas (milhares de linhas travavam a página); os totais continuam somando tudo
