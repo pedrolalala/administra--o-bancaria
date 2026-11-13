@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { differenceInDays, parseISO } from 'date-fns'
-import { Pencil, Search, Play, Handshake, Download, Info, Undo2 } from 'lucide-react'
+import { Pencil, Search, Play, Handshake, Download, Info, Undo2, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
@@ -29,6 +29,8 @@ import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDia
 import { buscarDuplicatasNovas, mapaBoletoParcela } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 import { AcordoModal } from '@/components/duplicatas/AcordoModal'
+import { EditarContaModal } from '@/components/duplicatas/EditarContaModal'
+import { ApagarContaModal } from '@/components/duplicatas/ApagarContaModal'
 
 // SPEC-248: na Contas a Pagar, duplicata "Cancelado" (DPL errada ou que mudou) não conta como aberta nem some do banco.
 // (a Contas a Receber não mudou). Aceita "cancelado" minúsculo, que é como o banco grava em alguns fluxos.
@@ -44,6 +46,8 @@ export default function ConsultarDuplicatas() {
   const [showInfo, setShowInfo] = useState(false)
   const [showEstornar, setShowEstornar] = useState(false)
   const [showAcordo, setShowAcordo] = useState(false) // SPEC-287
+  const [showEditarConta, setShowEditarConta] = useState(false) // SPEC-297
+  const [showApagarConta, setShowApagarConta] = useState(false) // SPEC-297
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   // SPEC-288: os filtros ficam guardados na sessão: ao ir para Antecipações e voltar, não se perdem
@@ -357,6 +361,15 @@ export default function ConsultarDuplicatas() {
     setShowAcordo(true)
   }
 
+  // SPEC-297: apagar conta(s) aberta(s) com justificativa (cancela no financeiro; boleto avulso vai para o backup)
+  const handleApagar = () => {
+    if (selecionadas.size === 0) {
+      toast({ title: 'Selecione ao menos uma conta', description: 'Marque as linhas na grade para apagar.', variant: 'destructive' })
+      return
+    }
+    setShowApagarConta(true)
+  }
+
   // "Info": definido pelo usuário em 2026-08-20 (SPEC-073 P-2) -- detalhes
   // completos da duplicata selecionada, exige exatamente 1.
   const handleInfo = () => {
@@ -384,12 +397,13 @@ export default function ConsultarDuplicatas() {
     }
     const id = Array.from(selecionadas)[0]
     const duplicata = data.find((d) => d.id === id)
-    if (duplicata?._fonte === 'financeiro') {
-      toast({
-        title: 'Duplicata do financeiro: sem edição por aqui',
-        description: 'Ela pode ser baixada (Executar) e estornada; a edição dos dados vem em outra etapa.',
-        variant: 'destructive',
-      })
+    // SPEC-297: conta do financeiro (ou boleto espelhado no financeiro) edita direto, com justificativa e log
+    if (duplicata?._parcelaId) {
+      if (duplicata.status === 'Pago') {
+        toast({ title: 'Conta paga', description: 'Estorne a baixa antes de editar.', variant: 'destructive' })
+        return
+      }
+      setShowEditarConta(true)
       return
     }
     if (!duplicata?.conta_grupo_id) {
@@ -457,6 +471,15 @@ export default function ConsultarDuplicatas() {
           >
             <Undo2 className="h-4 w-4" />
             <span className="text-[10px]">Estornar</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-red-600 hover:bg-red-50"
+            onClick={handleApagar}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="text-[10px]">Apagar</span>
           </Button>
           <Button
             variant="ghost"
@@ -924,6 +947,24 @@ export default function ConsultarDuplicatas() {
       <AcordoModal
         open={showAcordo}
         onClose={() => setShowAcordo(false)}
+        duplicatas={data.filter((d) => selecionadas.has(d.id))}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData(pagasCarregadas)
+        }}
+      />
+      <EditarContaModal
+        open={showEditarConta}
+        onClose={() => setShowEditarConta(false)}
+        duplicata={data.find((d) => selecionadas.has(d.id)) || null}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData(pagasCarregadas)
+        }}
+      />
+      <ApagarContaModal
+        open={showApagarConta}
+        onClose={() => setShowApagarConta(false)}
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
         onSuccess={() => {
           setSelecionadas(new Set())

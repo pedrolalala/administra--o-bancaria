@@ -191,3 +191,32 @@ export async function criarAcordo(
   if (error) throw error
   return data
 }
+
+/** SPEC-297: edita vencimento/valor/descrição de uma parcela aberta do financeiro (e do boleto ligado). Justificativa obrigatória; fica na auditoria. */
+export async function editarParcela(args: {
+  parcelaId: string
+  vencimento: string
+  valor: number
+  descricao: string
+  motivo: string
+}): Promise<void> {
+  if (!args.motivo.trim()) throw new Error('Informe a justificativa da alteração.')
+  const { error } = await (supabase as any).rpc('financeiro_editar_parcela', {
+    p_parcela: args.parcelaId,
+    p_vencimento: args.vencimento,
+    p_valor: args.valor,
+    p_descricao: args.descricao,
+    p_motivo: args.motivo.trim(),
+  })
+  if (error) throw error
+}
+
+/** SPEC-297: apaga (cancela) uma conta aberta. Com parcela no financeiro cancela a parcela (e o título, se for a última); boleto avulso vai para o backup.
+ *  Justificativa obrigatória; fica na auditoria. Conta com baixa: estornar antes. */
+export async function apagarConta(args: { parcelaId?: string | null; boletoId?: string | null; motivo: string }): Promise<void> {
+  if (!args.motivo.trim()) throw new Error('Informe a justificativa da exclusão.')
+  const { error } = args.parcelaId
+    ? await (supabase as any).rpc('financeiro_apagar_parcela', { p_parcela: args.parcelaId, p_motivo: args.motivo.trim() })
+    : await (supabase as any).rpc('boleto_apagar_avulso', { p_boleto: args.boletoId, p_motivo: args.motivo.trim() })
+  if (error) throw error
+}
