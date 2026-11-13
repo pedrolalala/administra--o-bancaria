@@ -239,10 +239,12 @@ export default function ConsultarDuplicatas() {
       }
       if (filtros.perfilEmpresa !== 'todos' && d.perfil !== filtros.perfilEmpresa) return false
 
-      // Único "Tipo data" disponível hoje é Vencimento -- filtra por
-      // d.vencimento quando início/final estiverem preenchidos.
-      if (filtros.dataInicio && (!d.vencimento || d.vencimento < filtros.dataInicio)) return false
-      if (filtros.dataFinal && (!d.vencimento || d.vencimento > filtros.dataFinal)) return false
+      // SPEC-305: "Tipo data" = Vencimento ou Pagamento; filtra a data escolhida quando início/final estiverem preenchidos.
+      const dataFiltro = String(
+        (filtros.tipoData === 'Pagamento' ? d.data_pagamento : d.vencimento) || '',
+      ).slice(0, 10)
+      if (filtros.dataInicio && (!dataFiltro || dataFiltro < filtros.dataInicio)) return false
+      if (filtros.dataFinal && (!dataFiltro || dataFiltro > filtros.dataFinal)) return false
 
       return true
     })
@@ -258,7 +260,8 @@ export default function ConsultarDuplicatas() {
         if (isVencido) acc.vencido += Number(curr.valor || 0)
         if (isAberto && !isVencido) acc.aVencer += Number(curr.valor || 0)
         if (isAberto) acc.aberto += Number(curr.valor || 0)
-        if (curr.status === 'Pago') acc.pago += Number(curr.valor_pago || curr.valor || 0)
+        // SPEC-305: pago = só o dinheiro; baixa interna (valor_pago 0) não volta a valer o valor da parcela (só boleto antigo sem valor_pago usa o valor)
+        if (curr.status === 'Pago') acc.pago += Number(curr.valor_pago ?? curr.valor ?? 0)
         acc.total += Number(curr.valor || 0)
         return acc
       },
@@ -583,9 +586,8 @@ export default function ConsultarDuplicatas() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {/* SPEC-245 (reunião 04, Filippo): Contas a Pagar mostra SÓ o que falta pagar; o que já foi pago fica num histórico separado
-                    (sem "Todos", para não misturar). Contas a Receber segue com todas as situações. */}
-                {!EH_PAGAR && <SelectItem value="Todos">Todos</SelectItem>}
+                {/* SPEC-305 (reunião Vinicius): "Todos" também no Contas a Pagar (a SPEC-245 tinha tirado). */}
+                <SelectItem value="Todos">Todos</SelectItem>
                 <SelectItem value="Aberto">{EH_PAGAR ? 'A pagar (em aberto)' : 'Aberto'}</SelectItem>
                 <SelectItem value="Vencido">Vencido</SelectItem>
                 <SelectItem value="Pago">{EH_PAGAR ? 'Pagas (histórico)' : 'Pago'}</SelectItem>
@@ -604,6 +606,7 @@ export default function ConsultarDuplicatas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Vencimento">Vencimento</SelectItem>
+                <SelectItem value="Pagamento">Pagamento</SelectItem>
               </SelectContent>
             </Select>
           </div>
