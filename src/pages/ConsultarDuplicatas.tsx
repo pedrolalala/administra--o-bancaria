@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { differenceInDays, parseISO } from 'date-fns'
-import { Pencil, Search, Play, Handshake, Download, Info, Undo2, Trash2 } from 'lucide-react'
+import { Pencil, Search, Play, Handshake, Download, Info, Undo2, Ban } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
@@ -30,11 +30,12 @@ import { buscarDuplicatasNovas, mapaBoletoParcela } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 import { AcordoModal } from '@/components/duplicatas/AcordoModal'
 import { EditarContaModal } from '@/components/duplicatas/EditarContaModal'
-import { ApagarContaModal } from '@/components/duplicatas/ApagarContaModal'
+import { CancelarContaModal } from '@/components/duplicatas/CancelarContaModal'
 
 // SPEC-248: na Contas a Pagar, duplicata "Cancelado" (DPL errada ou que mudou) não conta como aberta nem some do banco.
 // (a Contas a Receber não mudou). Aceita "cancelado" minúsculo, que é como o banco grava em alguns fluxos.
-const ehCancelada = (status: unknown) => EH_PAGAR && String(status ?? '').toLowerCase() === 'cancelado'
+// SPEC-297: vale nas duas telas (Pagar e Receber): conta cancelada não é aberta e fica no filtro Canceladas
+const ehCancelada = (status: unknown) => String(status ?? '').toLowerCase() === 'cancelado'
 
 export default function ConsultarDuplicatas() {
   const { toast } = useToast()
@@ -47,7 +48,8 @@ export default function ConsultarDuplicatas() {
   const [showEstornar, setShowEstornar] = useState(false)
   const [showAcordo, setShowAcordo] = useState(false) // SPEC-287
   const [showEditarConta, setShowEditarConta] = useState(false) // SPEC-297
-  const [showApagarConta, setShowApagarConta] = useState(false) // SPEC-297
+  const [showCancelarConta, setShowCancelarConta] = useState(false) // SPEC-297
+  const [canceladasCarregadas, setCanceladasCarregadas] = useState(false) // SPEC-297
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   // SPEC-288: os filtros ficam guardados na sessão: ao ir para Antecipações e voltar, não se perdem
@@ -87,7 +89,7 @@ export default function ConsultarDuplicatas() {
   // a grade desenha no máximo `limite` linhas (milhares de linhas travavam a página); os totais continuam somando tudo
   const [limite, setLimite] = useState(500)
 
-  const fetchData = async (comPagas: boolean = false) => {
+  const fetchData = async (comPagas: boolean = false, comCanceladas: boolean = canceladasCarregadas) => {
     setLoading(true)
     const PAGE = 1000
     let all: any[] = []
@@ -114,7 +116,7 @@ export default function ConsultarDuplicatas() {
     let mapaBoleto = new Map<string, string>()
     try {
       mapaBoleto = await mapaBoletoParcela()
-      doFinanceiro = await buscarDuplicatasNovas(comPagas)
+      doFinanceiro = await buscarDuplicatasNovas(comPagas, comCanceladas)
     } catch (e: any) {
       toast({ title: 'Erro ao carregar as duplicatas do financeiro', description: e?.message || String(e), variant: 'destructive' })
     }
@@ -131,6 +133,15 @@ export default function ConsultarDuplicatas() {
       fetchData(true)
     }
     setLimite(500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.tipoSituacao])
+
+  // SPEC-297: as canceladas do financeiro (~1.100 de legado) só carregam quando o filtro Canceladas é escolhido
+  useEffect(() => {
+    if (filtros.tipoSituacao === 'Cancelado' && !canceladasCarregadas) {
+      setCanceladasCarregadas(true)
+      fetchData(pagasCarregadas, true)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.tipoSituacao])
 
@@ -305,6 +316,11 @@ export default function ConsultarDuplicatas() {
       })
       return
     }
+    // SPEC-297: conta cancelada não recebe baixa.
+    if (data.some((d) => selecionadas.has(d.id) && ehCancelada(d.status))) {
+      toast({ title: 'Há conta cancelada na seleção', description: 'Desmarque as canceladas para dar baixa.', variant: 'destructive' })
+      return
+    }
     // SPEC-165: não baixa de novo o que já está pago.
     const jaPagas = data.filter((d) => selecionadas.has(d.id) && d.status === 'Pago')
     if (jaPagas.length > 0) {
@@ -361,13 +377,13 @@ export default function ConsultarDuplicatas() {
     setShowAcordo(true)
   }
 
-  // SPEC-297: apagar conta(s) aberta(s) com justificativa (cancela no financeiro; boleto avulso vai para o backup)
-  const handleApagar = () => {
+  // SPEC-297: cancelar conta(s) aberta(s) com justificativa (nada é apagado; fica no filtro Canceladas e no log)
+  const handleCancelar = () => {
     if (selecionadas.size === 0) {
-      toast({ title: 'Selecione ao menos uma conta', description: 'Marque as linhas na grade para apagar.', variant: 'destructive' })
+      toast({ title: 'Selecione ao menos uma conta', description: 'Marque as linhas na grade para cancelar.', variant: 'destructive' })
       return
     }
-    setShowApagarConta(true)
+    setShowCancelarConta(true)
   }
 
   // "Info": definido pelo usuário em 2026-08-20 (SPEC-073 P-2) -- detalhes
@@ -401,6 +417,10 @@ export default function ConsultarDuplicatas() {
     if (duplicata?._parcelaId) {
       if (duplicata.status === 'Pago') {
         toast({ title: 'Conta paga', description: 'Estorne a baixa antes de editar.', variant: 'destructive' })
+        return
+      }
+      if (ehCancelada(duplicata.status)) {
+        toast({ title: 'Conta cancelada', description: 'Conta cancelada não pode ser editada.', variant: 'destructive' })
         return
       }
       setShowEditarConta(true)
@@ -476,10 +496,10 @@ export default function ConsultarDuplicatas() {
             variant="ghost"
             size="sm"
             className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-red-600 hover:bg-red-50"
-            onClick={handleApagar}
+            onClick={handleCancelar}
           >
-            <Trash2 className="h-4 w-4" />
-            <span className="text-[10px]">Apagar</span>
+            <Ban className="h-4 w-4" />
+            <span className="text-[10px]">Cancelar</span>
           </Button>
           <Button
             variant="ghost"
@@ -569,7 +589,7 @@ export default function ConsultarDuplicatas() {
                 <SelectItem value="Aberto">{EH_PAGAR ? 'A pagar (em aberto)' : 'Aberto'}</SelectItem>
                 <SelectItem value="Vencido">Vencido</SelectItem>
                 <SelectItem value="Pago">{EH_PAGAR ? 'Pagas (histórico)' : 'Pago'}</SelectItem>
-                {EH_PAGAR && <SelectItem value="Cancelado">Canceladas</SelectItem>}
+                <SelectItem value="Cancelado">Canceladas</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -962,9 +982,9 @@ export default function ConsultarDuplicatas() {
           fetchData(pagasCarregadas)
         }}
       />
-      <ApagarContaModal
-        open={showApagarConta}
-        onClose={() => setShowApagarConta(false)}
+      <CancelarContaModal
+        open={showCancelarConta}
+        onClose={() => setShowCancelarConta(false)}
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
         onSuccess={() => {
           setSelecionadas(new Set())

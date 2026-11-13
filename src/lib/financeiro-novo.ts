@@ -8,7 +8,7 @@ const PAGE = 1000
 
 /** Parcelas do modelo novo desta tela (CP ou CR) no mesmo formato da grade de Consultar Duplicatas.
  *  Não repete o que a tela já mostra pelo boleto (boleto_id preenchido). Previstas (pedido ainda não entregue) e canceladas ficam de fora. */
-export async function buscarDuplicatasNovas(comPagas: boolean): Promise<any[]> {
+export async function buscarDuplicatasNovas(comPagas: boolean, comCanceladas = false): Promise<any[]> {
   const out: any[] = []
   for (let from = 0; ; from += PAGE) {
     let q = (supabase as any)
@@ -19,7 +19,9 @@ export async function buscarDuplicatasNovas(comPagas: boolean): Promise<any[]> {
       .order('vencimento', { ascending: true })
       .order('parcela_id', { ascending: true })
       .range(from, from + PAGE - 1)
-    q = comPagas ? q.in('status', ['Pendente', 'Pago']) : q.eq('status', 'Pendente')
+    // SPEC-297: 'Cancelado' só entra quando o filtro Canceladas é escolhido (são ~1.100 de legado)
+    const status = [...(comPagas ? ['Pendente', 'Pago'] : ['Pendente']), ...(comCanceladas ? ['Cancelado'] : [])]
+    q = q.in('status', status)
     const { data, error } = await q
     if (error) throw error
     for (const r of data || []) out.push(paraLinhaDaGrade(r))
@@ -40,7 +42,7 @@ export function paraLinhaDaGrade(r: any) {
     especie: r.especie ?? null,
     // SPEC-290: duplicata (ex.: da Connect) já usada para cobrir uma nota de compra do sistema: "Pedido 1985 / NF 11221" (só leitura)
     pago_antecipado: (r.pago_antecipado as string | null) ?? null,
-    status: r.status === 'Pago' ? 'Pago' : 'Pendente',
+    status: r.status === 'Pago' ? 'Pago' : r.status === 'Cancelado' ? 'Cancelado' : 'Pendente',
     numero_documento: r.numero_documento || '',
     num_parcela: r.num_parcela,
     total_parcelas: r.total_parcelas,
@@ -211,12 +213,12 @@ export async function editarParcela(args: {
   if (error) throw error
 }
 
-/** SPEC-297: apaga (cancela) uma conta aberta. Com parcela no financeiro cancela a parcela (e o título, se for a última); boleto avulso vai para o backup.
+/** SPEC-297: CANCELA uma conta aberta (nada é apagado: a parcela/boleto ficam como Cancelado e aparecem no filtro Canceladas).
  *  Justificativa obrigatória; fica na auditoria. Conta com baixa: estornar antes. */
-export async function apagarConta(args: { parcelaId?: string | null; boletoId?: string | null; motivo: string }): Promise<void> {
-  if (!args.motivo.trim()) throw new Error('Informe a justificativa da exclusão.')
+export async function cancelarConta(args: { parcelaId?: string | null; boletoId?: string | null; motivo: string }): Promise<void> {
+  if (!args.motivo.trim()) throw new Error('Informe a justificativa do cancelamento.')
   const { error } = args.parcelaId
-    ? await (supabase as any).rpc('financeiro_apagar_parcela', { p_parcela: args.parcelaId, p_motivo: args.motivo.trim() })
-    : await (supabase as any).rpc('boleto_apagar_avulso', { p_boleto: args.boletoId, p_motivo: args.motivo.trim() })
+    ? await (supabase as any).rpc('financeiro_cancelar_parcela', { p_parcela: args.parcelaId, p_motivo: args.motivo.trim() })
+    : await (supabase as any).rpc('boleto_cancelar_avulso', { p_boleto: args.boletoId, p_motivo: args.motivo.trim() })
   if (error) throw error
 }

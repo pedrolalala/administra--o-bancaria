@@ -22,7 +22,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { baixarLote, mapaBoletoParcela } from '@/lib/financeiro-novo'
 import { differenceInDays, parseISO } from 'date-fns'
-import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
+import { NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 
 const Field = ({
   label,
@@ -40,7 +40,7 @@ const Field = ({
 )
 
 // SPEC-248: duplicata "Cancelado" da Contas a Pagar não conta como aberta (a Contas a Receber não mudou).
-const ehCancelada = (status: unknown) => EH_PAGAR && String(status ?? '').toLowerCase() === 'cancelado'
+const ehCancelada = (status: unknown) => String(status ?? '').toLowerCase() === 'cancelado' // SPEC-297: nas duas telas
 
 export default function BaixarDuplicata() {
   const { toast } = useToast()
