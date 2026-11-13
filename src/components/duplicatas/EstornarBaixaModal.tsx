@@ -39,7 +39,8 @@ export function EstornarBaixaModal({ open, onClose, duplicatas, onSuccess }: Pro
     setSaving(true)
     try {
       const parcelaIds = Array.from(new Set(duplicatas.map((d) => d._parcelaId).filter(Boolean))) as string[]
-      const n = await estornarParcelas(parcelaIds, motivo)
+      // SPEC-305: boleto antigo sem parcela no financeiro novo não tem baixa para estornar; só o boleto volta para Pendente (abaixo)
+      const n = parcelaIds.length > 0 ? await estornarParcelas(parcelaIds, motivo) : 0
       // o que tem boleto: o boleto volta para Pendente (o modelo novo já foi estornado acima)
       const boletoIds = duplicatas.filter((d) => d._fonte !== 'financeiro').map((d) => d.id)
       if (boletoIds.length > 0) {

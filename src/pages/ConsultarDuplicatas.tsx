@@ -349,9 +349,10 @@ export default function ConsultarDuplicatas() {
       toast({ title: 'Há duplicata sem baixa na seleção', description: 'Só dá para estornar o que já está pago. Desmarque as abertas.', variant: 'destructive' })
       return
     }
-    const semModeloNovo = sel.filter((d) => !d._parcelaId)
-    if (semModeloNovo.length > 0) {
-      toast({ title: 'Estorno indisponível para esta duplicata', description: 'Ela não existe no financeiro novo (boleto antigo). Desmarque para continuar.', variant: 'destructive' })
+    // SPEC-305: boleto antigo pago (sem parcela no financeiro novo) também estorna: só volta o boleto para Pendente (a modal faz isso)
+    const semNada = sel.filter((d) => !d._parcelaId && d._fonte === 'financeiro')
+    if (semNada.length > 0) {
+      toast({ title: 'Estorno indisponível para esta duplicata', description: 'Não achei a parcela no financeiro. Desmarque para continuar.', variant: 'destructive' })
       return
     }
     setShowEstornar(true)
