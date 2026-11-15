@@ -12,7 +12,7 @@ import { lancarAntecipacao } from '@/lib/financeiro-novo'
 // SPEC-270 Fase 1 (só Contas a Receber): lançar uma "Antecipação de pagamento" — não é duplicata.
 // Campos da reunião 48 (Carol, 10/11): data de emissão, empresa, responsável (equipe do orçamento, nunca quem lança),
 // grupo / subgrupo / apropriação (os mesmos da duplicata), data do pagamento no lugar do vencimento, observação.
-// Nasce já recebida na data do pagamento (por isso pede a conta bancária onde o valor entrou) e não entra em "em aberto".
+// SPEC-301 (Carol, 13/11): NÃO baixa sozinha. Nasce em aberto no vencimento e a baixa (com a conta bancária) é feita à mão.
 
 const hoje = () => new Date().toISOString().slice(0, 10)
 
@@ -31,7 +31,6 @@ export default function AntecipacaoForm() {
   const [empresas, setEmpresas] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
-  const [contas, setContas] = useState<any[]>([])
   const [plano, setPlano] = useState<any[]>([])
 
   const [emissao, setEmissao] = useState(hoje())
@@ -43,8 +42,6 @@ export default function AntecipacaoForm() {
   const [grupoId, setGrupoId] = useState('')
   const [subGrupoId, setSubGrupoId] = useState('')
   const [apropriacaoId, setApropriacaoId] = useState('')
-  const [contaId, setContaId] = useState('')
-  const [forma, setForma] = useState('')
   const [valor, setValor] = useState('')
   const [observacao, setObservacao] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -54,13 +51,11 @@ export default function AntecipacaoForm() {
       supabase.from('empresas').select('id, nome').order('nome'),
       supabase.from('usuarios').select('id, nome').order('nome'),
       supabase.from('contatos').select('id, nome, razao_social').eq('tipo', 'cliente').order('nome'),
-      supabase.from('contas_bancarias').select('id, nome').order('nome'),
       supabase.from('plano_de_contas').select('id, nome, nivel, parent_id, tipo').eq('ativo', true).order('nome'),
-    ]).then(([emp, usr, cli, cb, pl]) => {
+    ]).then(([emp, usr, cli, pl]) => {
       setEmpresas(emp.data || [])
       setUsuarios(usr.data || [])
       setClientes(cli.data || [])
-      setContas(cb.data || [])
       setPlano(pl.data || [])
     })
   }, [])
@@ -80,7 +75,6 @@ export default function AntecipacaoForm() {
       : !clienteId ? 'o Cliente'
       : !responsavelId ? 'o Responsável'
       : !apropriacaoId ? 'a Apropriação (grupo, subgrupo e apropriação)'
-      : !contaId ? 'a Conta bancária em que o valor entrou'
       : !(v > 0) ? 'o Valor'
       : null
     if (falta) {
@@ -98,8 +92,6 @@ export default function AntecipacaoForm() {
         dataPagamento,
         valor: v,
         planoContasId: apropriacaoId,
-        contaBancariaId: contaId,
-        forma: forma || null,
         observacao: observacao || null,
       })
       toast({ title: 'Antecipação lançada', description: 'Ela aparece na aba Antecipações e em Consultar Duplicatas (selo AT).' })
@@ -116,15 +108,15 @@ export default function AntecipacaoForm() {
       <div className="bg-white border border-slate-200 rounded-lg p-3">
         <div className="font-semibold text-xs mb-1 text-slate-700">Antecipação de pagamento</div>
         <p className="text-[11px] text-slate-500 mb-3">
-          Valor que o cliente já pagou antes da venda. Não é duplicata: entra como já recebido, aparece como antecipada em Consultar
-          Duplicatas e pode ser usado na aprovação financeira do orçamento do cliente.
+          Valor que o cliente paga antes da venda. Não é duplicata: entra em aberto no vencimento (sem baixa automática) e aparece como
+          antecipada em Consultar Duplicatas, onde a baixa é feita à mão.
         </p>
         <div className="grid grid-cols-12 gap-3">
           <Campo label="Data emissão (operação recebida)">
             <Input type="date" className="h-7 text-xs bg-slate-50" value={emissao} onChange={(e) => setEmissao(e.target.value)} />
           </Campo>
-          <Campo label="Data do pagamento">
-            <Input type="date" className="h-7 text-xs bg-slate-50" max={hoje()} value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
+          <Campo label="Data do vencimento">
+            <Input type="date" className="h-7 text-xs bg-slate-50" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
           </Campo>
           <Campo label="Empresa">
             <Select value={empresaId} onValueChange={setEmpresaId}>
@@ -153,14 +145,8 @@ export default function AntecipacaoForm() {
               <SelectContent>{responsaveis.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}</SelectContent>
             </Select>
           </Campo>
-          <Campo label="Valor (R$)">
+          <Campo label="Valor do vencimento (R$)">
             <Input inputMode="decimal" className="h-7 text-xs bg-slate-50" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} />
-          </Campo>
-          <Campo label="Conta bancária (onde entrou)">
-            <Select value={contaId} onValueChange={setContaId}>
-              <SelectTrigger className="h-7 text-xs bg-slate-50"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>{contas.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
-            </Select>
           </Campo>
           <Campo label="Grupo">
             <Select value={grupoId} onValueChange={(v) => { setGrupoId(v); setSubGrupoId(''); setApropriacaoId('') }}>
@@ -180,16 +166,13 @@ export default function AntecipacaoForm() {
               <SelectContent>{apropriacoes.map((g) => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}</SelectContent>
             </Select>
           </Campo>
-          <Campo label="Forma de pagamento (opcional)">
-            <Input className="h-7 text-xs bg-slate-50" placeholder="Pix, TED, boleto..." value={forma} onChange={(e) => setForma(e.target.value)} />
-          </Campo>
           <div className="col-span-12 space-y-1">
             <label className="text-[10px] text-slate-500 font-medium uppercase">Observação (opcional)</label>
             <Textarea className="text-xs bg-slate-50 min-h-[60px]" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
           </div>
         </div>
         <p className="text-[11px] text-slate-500 mt-3">
-          Situação: não se preenche — a antecipação fica em carteira como recebida na data do pagamento.
+          Situação: não se preenche — a antecipação fica em aberto até a baixa manual.
         </p>
         <div className="flex justify-end gap-2 mt-3">
           <Button variant="outline" size="sm" onClick={() => navigate('/antecipacoes')} disabled={salvando}>Cancelar</Button>

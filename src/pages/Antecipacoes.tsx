@@ -99,8 +99,8 @@ function AntecipacoesReceber() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-slate-500 max-w-3xl">
-          Valores que o cliente já pagou antes da venda. Entram como já recebidos e ficam com saldo a compensar. Aparecem também em
-          Consultar Duplicatas (filtro Todos ou Pago) com o selo AT.
+          Valores que o cliente vai pagar (ou já pagou) antes da venda. Entram em aberto no vencimento, sem baixa automática: a baixa é feita à mão
+          em Consultar Duplicatas, onde aparecem com o selo AT.
         </p>
         <Button size="sm" asChild>
           <Link to="/antecipacoes/nova">
@@ -111,7 +111,7 @@ function AntecipacoesReceber() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="text-xs">Pago em</TableHead>
+            <TableHead className="text-xs">Vencimento</TableHead>
             <TableHead className="text-xs">Emissão</TableHead>
             <TableHead className="text-xs">Cliente</TableHead>
             <TableHead className="text-xs">Empresa</TableHead>
@@ -139,6 +139,7 @@ function AntecipacoesReceber() {
           ) : (
             linhas.map((l) => {
               const cancelada = l.status === 'Cancelado'
+              const recebida = l.status === 'Pago'
               return (
                 <TableRow key={l.titulo_id} className={cancelada ? 'opacity-60' : ''}>
                   <TableCell className="text-xs">{dia(l.data_pagamento)}</TableCell>
@@ -151,10 +152,10 @@ function AntecipacoesReceber() {
                   <TableCell className="text-xs">{l.plano_contas_nome ?? '—'}</TableCell>
                   <TableCell className="text-xs">{l.responsavel}</TableCell>
                   <TableCell className="text-xs text-right tabular-nums">{brl(l.valor)}</TableCell>
-                  <TableCell className="text-xs text-right tabular-nums font-semibold">{cancelada ? '—' : brl(l.valor)}</TableCell>
+                  <TableCell className="text-xs text-right tabular-nums font-semibold">{cancelada || !recebida ? '—' : brl(l.valor)}</TableCell>
                   <TableCell>
-                    <span className={`text-[11px] px-1.5 py-0.5 rounded ${cancelada ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'}`}>
-                      {cancelada ? 'Cancelada' : 'Disponível'}
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded ${cancelada ? 'bg-red-100 text-red-700' : recebida ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {cancelada ? 'Cancelada' : recebida ? 'Recebida' : 'Em aberto'}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -208,8 +209,8 @@ export default function Antecipacoes() {
           {EH_PAGAR ? (
             <>
               <p className="text-sm text-slate-500 mb-3 max-w-3xl">
-                Valor pago ao fornecedor antes da nota fiscal (sinal ou 100%). Quando a nota chegar, a Entrada de Nota Fiscal (Compras)
-                mostra o saldo para vincular: a nota desconta o valor usado.
+                Valor combinado com o fornecedor antes da nota fiscal (sinal ou 100%). Fica em aberto no vencimento: a baixa é feita à mão em
+                Consultar Duplicatas. Quando a nota chegar, a Entrada de Nota Fiscal (Compras) mostra o saldo para vincular.
               </p>
               <AntecipacoesPagar />
             </>

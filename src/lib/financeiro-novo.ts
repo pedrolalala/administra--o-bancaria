@@ -139,7 +139,7 @@ export async function estornarParcelas(parcelaIds: string[], motivo: string): Pr
   return ativas.length
 }
 
-/** SPEC-270 Fase 1 (só Contas a Receber): lança uma antecipação de pagamento já recebida na data (título adiantamento + baixa). */
+/** SPEC-270 Fase 1 (só Contas a Receber): lança uma antecipação de pagamento EM ABERTO no vencimento (SPEC-301: sem baixa automática). */
 export async function lancarAntecipacao(args: {
   empresaId: string
   perfil: string | null
@@ -149,8 +149,8 @@ export async function lancarAntecipacao(args: {
   dataPagamento: string
   valor: number
   planoContasId: string
-  contaBancariaId: string
-  forma: string | null
+  contaBancariaId?: string | null
+  forma?: string | null
   observacao: string | null
 }): Promise<string> {
   const { data, error } = await (supabase as any).rpc('financeiro_lancar_antecipacao', {
@@ -163,8 +163,8 @@ export async function lancarAntecipacao(args: {
     p_data_pagamento: args.dataPagamento,
     p_valor: args.valor,
     p_plano_contas_id: args.planoContasId,
-    p_conta_bancaria_id: args.contaBancariaId,
-    p_forma: args.forma,
+    p_conta_bancaria_id: args.contaBancariaId ?? null,
+    p_forma: args.forma ?? null,
     p_observacao: args.observacao,
   })
   if (error) throw error

@@ -31,7 +31,8 @@ import { useToast } from '@/hooks/use-toast'
 
 // SPEC-215: pagamento ao fornecedor antes da nota (sinal ou 100%). Lançado aqui pelo financeiro; quando a
 // nota chega, a Entrada de Nota Fiscal (Compras) mostra o saldo e vincula — a nota desconta o valor usado.
-// Aparece no Contas a Pagar do Dashboard como pago (DESPESAS › PAGAMENTO ANTECIPADO).
+// SPEC-301: a antecipação NÃO é baixada sozinha: nasce em aberto no vencimento informado e a baixa é feita à mão em Consultar Duplicatas.
+// O nº do pedido é digitado livre (se existir no sistema liga ao pedido; senão fica só como texto).
 
 interface PagamentoAntecipado {
   id: string
@@ -75,9 +76,8 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
   const [buscaForn, setBuscaForn] = useState('')
   const [resultados, setResultados] = useState<{ id: string; nome: string }[]>([])
   const [fornecedor, setFornecedor] = useState<{ id: string; nome: string } | null>(null)
-  const [pedidos, setPedidos] = useState<{ id: string; numero: string; valor_total: number | null; status: string }[]>([])
   const [empresaId, setEmpresaId] = useState('')
-  const [pedidoId, setPedidoId] = useState('nenhum')
+  const [pedidoNumero, setPedidoNumero] = useState('')
   const [valor, setValor] = useState('')
   const [dataPagamento, setDataPagamento] = useState(() => new Date().toISOString().slice(0, 10))
   const [observacao, setObservacao] = useState('')
@@ -123,29 +123,12 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
     return () => clearTimeout(t)
   }, [buscaForn, fornecedor])
 
-  // Pedidos em aberto do fornecedor: ligar o sinal ao pedido tira esse valor da previsão do pedido.
-  useEffect(() => {
-    setPedidoId('nenhum')
-    if (!fornecedor) {
-      setPedidos([])
-      return
-    }
-    ;(supabase as any)
-      .from('pedidos_compra')
-      .select('id, numero, valor_total, status, empresa_id')
-      .eq('fornecedor_id', fornecedor.id)
-      .in('status', ['aguardando_aprovar', 'aprovado', 'parcialmente_recebido'])
-      .not('numero', 'like', 'PC-LEGADO-%')
-      .order('criado_em', { ascending: false })
-      .then(({ data }: any) => setPedidos(data ?? []))
-  }, [fornecedor])
-
   function limpar() {
     setLancando(false)
     setBuscaForn('')
     setFornecedor(null)
     setEmpresaId('')
-    setPedidoId('nenhum')
+    setPedidoNumero('')
     setValor('')
     setDataPagamento(new Date().toISOString().slice(0, 10))
     setObservacao('')
@@ -159,7 +142,7 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
       p_empresa_id: empresaId,
       p_valor: lerValor(valor),
       p_data_pagamento: dataPagamento,
-      p_pedido_compra_id: pedidoId === 'nenhum' ? null : pedidoId,
+      p_pedido_numero: pedidoNumero.trim() || null,
       p_observacao: observacao || null,
     })
     setSalvando(false)
@@ -168,8 +151,8 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
       return
     }
     toast({
-      title: 'Pagamento antecipado lançado',
-      description: 'Vai aparecer na Entrada de Nota Fiscal deste fornecedor para vincular.',
+      title: 'Antecipação lançada em aberto',
+      description: 'Fica no vencimento informado; dê a baixa em Consultar Duplicatas quando pagar. Aparece na Entrada de Nota Fiscal deste fornecedor para vincular.',
     })
     limpar()
     carregar()
@@ -256,29 +239,16 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Valor pago (R$) *</Label>
+              <Label>Valor do vencimento (R$) *</Label>
               <Input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Data do pagamento *</Label>
+              <Label>Data do vencimento *</Label>
               <Input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Pedido de compra (opcional)</Label>
-              <Select value={pedidoId} onValueChange={setPedidoId} disabled={!fornecedor}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Sem pedido</SelectItem>
-                  {pedidos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.numero}
-                      {p.valor_total != null ? ` — ${brl(Number(p.valor_total))}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Nº do pedido de compra (opcional)</Label>
+              <Input placeholder="Digite o número do pedido" value={pedidoNumero} onChange={(e) => setPedidoNumero(e.target.value)} />
             </div>
             <div className="space-y-1 sm:col-span-3">
               <Label>Observação</Label>
@@ -305,7 +275,7 @@ export function PagamentosAntecipadosPainel({ empresas }: { empresas: { id: stri
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="text-xs">Pago em</TableHead>
+              <TableHead className="text-xs">Vencimento</TableHead>
               <TableHead className="text-xs">Fornecedor</TableHead>
               <TableHead className="text-xs">Empresa</TableHead>
               <TableHead className="text-xs">Pedido</TableHead>
@@ -415,8 +385,8 @@ export function PagamentosAntecipadosDialog({
         <DialogHeader>
           <DialogTitle>Pagamentos antecipados</DialogTitle>
           <DialogDescription>
-            Valor pago ao fornecedor antes da nota fiscal (sinal ou 100%). Quando a nota chegar, a Entrada
-            de Nota Fiscal mostra o saldo para vincular: a nota desconta o valor usado.
+            Valor combinado com o fornecedor antes da nota fiscal (sinal ou 100%). Fica em aberto no vencimento e a baixa é feita à mão em
+            Consultar Duplicatas. Quando a nota chegar, a Entrada de Nota Fiscal mostra o saldo para vincular: a nota desconta o valor usado.
           </DialogDescription>
         </DialogHeader>
         {open && <PagamentosAntecipadosPainel empresas={empresas} />}
