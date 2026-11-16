@@ -67,7 +67,15 @@ function FormularioDuplicata() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const contaGrupoId = searchParams.get('id')
-  const isEditing = !!contaGrupoId
+  // SPEC-309: conta do financeiro novo (Connect/manual) edita pelo mesmo formulário, identificada pela parcela
+  const parcelaParam = searchParams.get('parcela')
+  const editandoFin = !!parcelaParam
+  const isEditing = !!contaGrupoId || editandoFin
+  const [tituloFinId, setTituloFinId] = useState('')
+  const [codigoFin, setCodigoFin] = useState('')
+  const [motivoEdicao, setMotivoEdicao] = useState('')
+  const [parcelasFinOriginais, setParcelasFinOriginais] = useState<Record<string, any>>({})
+  const [observacaoOriginalFin, setObservacaoOriginalFin] = useState('')
 
   const [saving, setSaving] = useState(false)
   const [empresas, setEmpresas] = useState<any[]>([])
@@ -205,6 +213,67 @@ function FormularioDuplicata() {
         )
       })
   }, [contaGrupoId])
+
+  // SPEC-309: carrega uma conta do financeiro novo (título + parcelas) pela parcela escolhida em Consultar Duplicatas.
+  useEffect(() => {
+    if (!parcelaParam) return
+    ;(supabase as any)
+      .rpc('financeiro_conta_para_edicao', { p_parcela: parcelaParam })
+      .then(async ({ data, error }: any) => {
+        if (error || !data) {
+          toast({ title: 'Não foi possível abrir a conta', description: error?.message, variant: 'destructive' })
+          navigate('/duplicatas', { replace: true })
+          return
+        }
+        const t = data.titulo
+        const natOk = (EH_PAGAR && t.natureza === 'pagar') || (!EH_PAGAR && t.natureza === 'receber')
+        if (!natOk) {
+          toast({ title: `Este lançamento é de ${NOME_OUTRO_SISTEMA}`, description: `Abra pelo sistema ${NOME_OUTRO_SISTEMA}.`, variant: 'destructive' })
+          navigate('/duplicatas', { replace: true })
+          return
+        }
+        if (!data.editavel) {
+          toast({ title: 'Esta conta não pode ser editada aqui', description: data.motivo_bloqueio, variant: 'destructive' })
+          navigate('/duplicatas', { replace: true })
+          return
+        }
+        setTituloFinId(t.id)
+        setCodigoFin(String(t.legado_cod_duplicata ?? t.numero_duplicata ?? t.id.slice(0, 8)))
+        if (t.contato_id) {
+          const { data: contato } = await supabase.from('contatos').select('id, tipo').eq('id', t.contato_id).maybeSingle()
+          if (contato) {
+            setTipoPessoa(contato.tipo === 'cliente' ? 'cliente' : 'fornecedor')
+            setPessoaId(contato.id)
+          }
+        }
+        const ps: any[] = data.parcelas || []
+        setDataEmissao(ps[0]?.emissao || new Date().toISOString().slice(0, 10))
+        setEmpresaId(t.empresa_id || '')
+        setPerfilEmpresa(t.perfil || '')
+        setResponsavelId(t.responsavel_id || '')
+        setNf(t.documento || '')
+        setReferencia(t.descricao || '')
+        setApropriacaoId(t.plano_contas_id || '')
+        const primeira = ps.find((x) => x.aberta) || ps[0]
+        const obs = primeira?.observacao || ''
+        setObservacao(obs)
+        setObservacaoOriginalFin(obs)
+        setSituacao(ps.length > 0 && ps.every((x) => !x.aberta) ? 'Pago' : EH_PAGAR ? 'Aberto' : 'Pendente')
+        const orig: Record<string, any> = {}
+        ps.forEach((x) => (orig[x.id] = x))
+        setParcelasFinOriginais(orig)
+        setParcelas(
+          ps.map((x, idx) => ({
+            id: x.id,
+            pago: !x.aberta,
+            parcela: x.numero || idx + 1,
+            valor: String(x.valor ?? ''),
+            vencimento: x.vencimento || '',
+            linhaDigitavel: '',
+          })),
+        )
+      })
+  }, [parcelaParam])
 
   // Apropriacao (plano_de_contas) e hierarquico em 3 niveis: 1=Grupo,
   // 2=Sub Grupo, 3=Apropriacao (folha). Os selects de Grupo/Sub Grupo
@@ -361,6 +430,52 @@ function FormularioDuplicata() {
       return
     }
 
+    // SPEC-309: conta do financeiro novo grava por função própria (título + parcelas abertas), com justificativa e log
+    if (editandoFin) {
+      if (!motivoEdicao.trim()) {
+        toast({ title: 'Informe a justificativa da alteração', variant: 'destructive' })
+        return
+      }
+      setSaving(true)
+      try {
+        const obsMudou = observacao !== observacaoOriginalFin
+        const { error } = await (supabase as any).rpc('financeiro_editar_conta', {
+          p_titulo: tituloFinId,
+          p_dados: {
+            empresa_id: empresaId,
+            perfil: perfilEmpresa || null,
+            contato_id: pessoaId || null,
+            plano_contas_id: apropriacaoId || null,
+            documento: nf || null,
+            descricao: referencia || null,
+            responsavel_id: responsavelId || null,
+          },
+          p_parcelas: parcelas
+            .filter((p) => p.id && !p.pago)
+            .map((p) => {
+              const o = parcelasFinOriginais[p.id as string] || {}
+              return {
+                id: p.id,
+                vencimento: p.vencimento,
+                valor: parseFloat(p.valor),
+                descricao: o.descricao ?? null,
+                observacao: obsMudou ? observacao || null : (o.observacao ?? null),
+                emissao: dataEmissao || o.emissao || null,
+              }
+            }),
+          p_motivo: motivoEdicao.trim(),
+        })
+        if (error) throw error
+        toast({ title: 'Conta alterada', description: 'A alteração e a justificativa ficaram registradas no log.' })
+        navigate('/duplicatas')
+      } catch (e: any) {
+        toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' })
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     setSaving(true)
     try {
       const grupoContaId = contaGrupoId || crypto.randomUUID()
@@ -500,7 +615,7 @@ function FormularioDuplicata() {
                 readOnly
                 disabled
                 className="h-7 text-xs bg-slate-100 text-slate-400"
-                value={isEditing ? contaGrupoId!.slice(0, 8) : 'gerado ao salvar'}
+                value={editandoFin ? codigoFin : isEditing ? contaGrupoId!.slice(0, 8) : 'gerado ao salvar'}
               />
             </Field>
 
@@ -664,7 +779,7 @@ function FormularioDuplicata() {
               </Select>
             </Field>
             <Field label="Situação">
-              <Select value={situacao} onValueChange={setSituacao}>
+              <Select value={situacao} onValueChange={setSituacao} disabled={editandoFin}>
                 <SelectTrigger className="h-7 text-xs bg-slate-50">
                   <SelectValue />
                 </SelectTrigger>
@@ -689,7 +804,7 @@ function FormularioDuplicata() {
               </Select>
             </Field>
             <Field label="Conta">
-              <Select value={contaBancariaId} onValueChange={setContaBancariaId}>
+              <Select value={contaBancariaId} onValueChange={setContaBancariaId} disabled={editandoFin}>
                 <SelectTrigger className="h-7 text-xs bg-slate-50">
                   <SelectValue placeholder="-" />
                 </SelectTrigger>
@@ -776,7 +891,7 @@ function FormularioDuplicata() {
                 variant="outline"
                 className="h-7 w-full"
                 onClick={handleAdicionarParcela}
-                disabled={totalParcAtingido}
+                disabled={totalParcAtingido || editandoFin}
               >
                 <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Parcela
               </Button>
@@ -842,6 +957,7 @@ function FormularioDuplicata() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-red-500"
+                          disabled={editandoFin}
                           onClick={() => handleRemoverParcela(p.parcela)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -856,6 +972,22 @@ function FormularioDuplicata() {
         </div>
       </div>
 
+      {editandoFin && (
+        <div className="bg-amber-50 border-t border-amber-200 px-4 py-2 shrink-0">
+          <label className="text-[10px] text-slate-600 font-medium uppercase">Justificativa da alteração *</label>
+          <Textarea
+            rows={2}
+            className="text-xs bg-white"
+            placeholder="Ex.: vencimento combinado com o fornecedor"
+            value={motivoEdicao}
+            onChange={(e) => setMotivoEdicao(e.target.value)}
+            disabled={saving}
+          />
+          <div className="text-[10px] text-slate-500 mt-1">
+            Parcelas pagas ficam só para consulta. Para adicionar/remover parcelas ou cancelar, use os botões da consulta. A alteração fica no log.
+          </div>
+        </div>
+      )}
       <div className="bg-slate-200 border-t px-4 py-2 flex items-center justify-between shrink-0">
         <div className="text-sm font-bold text-slate-700">
           Valor Total: <span className="text-primary">{formatCurrency(valorTotal)}</span>
@@ -937,7 +1069,7 @@ function FormularioDuplicata() {
 // Contas a Pagar segue só com duplicata até a unificação com o pagamento antecipado de fornecedor (SPEC-215).
 export default function CadastrarDuplicata() {
   const [searchParams] = useSearchParams()
-  const editando = !!searchParams.get('id')
+  const editando = !!searchParams.get('id') || !!searchParams.get('parcela')
   const [modalidade, setModalidade] = useState<'duplicata' | 'antecipacao'>('duplicata')
   const escolhe = !EH_PAGAR && !editando
 

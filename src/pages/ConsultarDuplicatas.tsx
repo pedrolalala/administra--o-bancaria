@@ -433,7 +433,8 @@ export default function ConsultarDuplicatas() {
         toast({ title: 'Conta cancelada', description: 'Conta cancelada não pode ser editada.', variant: 'destructive' })
         return
       }
-      setShowEditarConta(true)
+      // SPEC-309: conta do financeiro abre o MESMO formulário completo do Cadastrar Duplicatas, em modo edição
+      navigate(`/cadastrar-duplicata?parcela=${duplicata._parcelaId}`)
       return
     }
     if (!duplicata?.conta_grupo_id) {
@@ -748,6 +749,14 @@ export default function ConsultarDuplicatas() {
                   }`}
                   onClick={() => toggleSelecionada(d.id)}
                   onDoubleClick={() => {
+                    if (d.conta_grupo_id) {
+                      navigate(`/cadastrar-duplicata?id=${d.conta_grupo_id}`)
+                      return
+                    }
+                    if (d._parcelaId && d.status !== 'Pago' && !ehCancelada(d.status)) {
+                      navigate(`/cadastrar-duplicata?parcela=${d._parcelaId}`) // SPEC-309
+                      return
+                    }
                     if (d._fonte === 'financeiro') {
                       toast({ title: 'Duplicata do financeiro', description: 'Use Executar para dar baixa ou Estornar para desfazer.' })
                       return
