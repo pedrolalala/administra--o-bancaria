@@ -417,7 +417,13 @@ export default function ConsultarDuplicatas() {
     }
     const id = Array.from(selecionadas)[0]
     const duplicata = data.find((d) => d.id === id)
-    // SPEC-297: conta do financeiro (ou boleto espelhado no financeiro) edita direto, com justificativa e log
+    // Duplicata cadastrada pela tela Cadastrar Duplicatas (tem grupo de conta): Editar abre o mesmo
+    // formulario do cadastro, em modo edicao (comportamento original; a SPEC-297 tinha trocado por um modal).
+    if (duplicata?.conta_grupo_id) {
+      navigate(`/cadastrar-duplicata?id=${duplicata.conta_grupo_id}`)
+      return
+    }
+    // SPEC-297: conta nativa/legada do financeiro (sem grupo de conta, sem tela de cadastro) edita no modal, com justificativa e log
     if (duplicata?._parcelaId) {
       if (duplicata.status === 'Pago') {
         toast({ title: 'Conta paga', description: 'Estorne a baixa antes de editar.', variant: 'destructive' })
