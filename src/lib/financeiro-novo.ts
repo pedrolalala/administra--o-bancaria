@@ -82,6 +82,18 @@ export async function mapaBoletoParcela(): Promise<Map<string, string>> {
   return new Map((data || []).map((r: any) => [r.boleto_id as string, r.parcela_id as string]))
 }
 
+/** SPEC-312: boleto (tabela antiga) cuja parcela foi renegociada num acordo -> data do acordo. A grade mostra a linha como Pago (valor pago 0) nessa data. */
+export async function mapaBoletosDeAcordo(): Promise<Map<string, string | null>> {
+  const { data, error } = await (supabase as any)
+    .from('vw_financeiro_duplicatas')
+    .select('boleto_id, data_pagamento')
+    .eq('tipo_operacao', TIPO_OPERACAO)
+    .eq('situacao', 'renegociada')
+    .not('boleto_id', 'is', null)
+  if (error) throw error
+  return new Map((data || []).map((r: any) => [r.boleto_id as string, (r.data_pagamento as string | null) ?? null]))
+}
+
 export interface ContaBancaria {
   id: string
   nome: string

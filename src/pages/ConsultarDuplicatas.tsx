@@ -26,7 +26,7 @@ import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
 import { NOME_SISTEMA, TIPO_OPERACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
-import { buscarDuplicatasNovas, mapaBoletoParcela } from '@/lib/financeiro-novo'
+import { buscarDuplicatasNovas, mapaBoletoParcela, mapaBoletosDeAcordo } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 import { AcordoModal } from '@/components/duplicatas/AcordoModal'
 import { EditarContaModal } from '@/components/duplicatas/EditarContaModal'
@@ -114,13 +114,20 @@ export default function ConsultarDuplicatas() {
     // (remessa/retorno/cobrança); o mapa liga o boleto à parcela do modelo novo para a baixa e o estorno atualizarem os dois.
     let doFinanceiro: any[] = []
     let mapaBoleto = new Map<string, string>()
+    let boletosDeAcordo = new Map<string, string | null>()
     try {
       mapaBoleto = await mapaBoletoParcela()
+      boletosDeAcordo = await mapaBoletosDeAcordo()
       doFinanceiro = await buscarDuplicatasNovas(comPagas, comCanceladas)
     } catch (e: any) {
       toast({ title: 'Erro ao carregar as duplicatas do financeiro', description: e?.message || String(e), variant: 'destructive' })
     }
-    const boletosComParcela = all.map((b: any) => ({ ...b, _parcelaId: mapaBoleto.get(b.id) ?? null }))
+    // SPEC-312: original de acordo (renegociada) = Pago com valor 0 na data do acordo, mesmo que o boleto antigo siga 'pendente_registro'
+    const boletosComParcela = all.map((b: any) => {
+      const base = { ...b, _parcelaId: mapaBoleto.get(b.id) ?? null }
+      if (!boletosDeAcordo.has(b.id)) return base
+      return { ...base, status: 'Pago', data_pagamento: boletosDeAcordo.get(b.id), valor_pago: 0, _acordoOriginal: true }
+    })
     const todas = [...boletosComParcela, ...doFinanceiro].sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')))
     setData(todas)
     setLoading(false)
