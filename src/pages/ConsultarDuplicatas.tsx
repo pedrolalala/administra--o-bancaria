@@ -344,6 +344,10 @@ export default function ConsultarDuplicatas() {
       toast({ title: 'Selecione ao menos uma duplicata paga', variant: 'destructive' })
       return
     }
+    if (sel.some((d) => d._acordoOriginal)) {
+      toast({ title: 'Conta de acordo', description: 'Esta conta foi renegociada num acordo. Para desfazer, cancele a conta ACORDO-n do acordo: as originais reabrem sozinhas.', variant: 'destructive' })
+      return
+    }
     const naoPagas = sel.filter((d) => d.status !== 'Pago')
     if (naoPagas.length > 0) {
       toast({ title: 'Há duplicata sem baixa na seleção', description: 'Só dá para estornar o que já está pago. Desmarque as abertas.', variant: 'destructive' })

@@ -42,6 +42,8 @@ export function paraLinhaDaGrade(r: any) {
     especie: r.especie ?? null,
     // SPEC-290: duplicata (ex.: da Connect) já usada para cobrir uma nota de compra do sistema: "Pedido 1985 / NF 11221" (só leitura)
     pago_antecipado: (r.pago_antecipado as string | null) ?? null,
+    // SPEC-312: parcela original de acordo aparece como Pago (valor 0) mas nao tem baixa a estornar
+    _acordoOriginal: r.situacao === 'renegociada',
     status: r.status === 'Pago' ? 'Pago' : r.status === 'Cancelado' ? 'Cancelado' : 'Pendente',
     numero_documento: r.numero_documento || '',
     num_parcela: r.num_parcela,
