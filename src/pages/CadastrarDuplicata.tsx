@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
+import SeletorPessoa, { type PessoaOpcao } from '@/components/duplicatas/SeletorPessoa'
 import {
   Dialog,
   DialogContent,
@@ -80,7 +81,6 @@ function FormularioDuplicata() {
   const [saving, setSaving] = useState(false)
   const [empresas, setEmpresas] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
-  const [contatos, setContatos] = useState<any[]>([])
   const [contasBancarias, setContasBancarias] = useState<any[]>([])
   const [planoContas, setPlanoContas] = useState<any[]>([])
   // SPEC-262: criar Grupo / Sub grupo / Apropriação pela própria tela.
@@ -99,7 +99,8 @@ function FormularioDuplicata() {
   const [tipoPessoa, setTipoPessoa] = useState<'fornecedor' | 'cliente'>(
     EH_PAGAR ? 'fornecedor' : 'cliente',
   )
-  const [pessoaId, setPessoaId] = useState('')
+  const [pessoa, setPessoa] = useState<PessoaOpcao | null>(null)
+  const pessoaId = pessoa?.id || ''
   // Nome gravado no boleto -- preservado na edição quando a duplicata antiga
   // não tem contato_id (antes a edição salvava o nome em branco).
   const [nomePagadorOriginal, setNomePagadorOriginal] = useState('')
@@ -140,15 +141,6 @@ function FormularioDuplicata() {
     })
   }, [])
 
-  useEffect(() => {
-    supabase
-      .from('contatos')
-      .select('id, nome, razao_social')
-      .eq('tipo', tipoPessoa)
-      .order('nome')
-      .then(({ data }) => setContatos(data || []))
-  }, [tipoPessoa])
-
   // Carrega uma conta existente pra edicao (todas as parcelas com o mesmo
   // conta_grupo_id compartilham os dados de "Gerar Conta").
   useEffect(() => {
@@ -176,12 +168,12 @@ function FormularioDuplicata() {
         if (first.contato_id) {
           const { data: contato } = await supabase
             .from('contatos')
-            .select('id, tipo')
+            .select('id, tipo, nome, razao_social, cpf_cnpj')
             .eq('id', first.contato_id)
             .maybeSingle()
           if (contato) {
             setTipoPessoa(contato.tipo === 'cliente' ? 'cliente' : 'fornecedor')
-            setPessoaId(contato.id)
+            setPessoa(contato as PessoaOpcao)
           }
         }
         setDataEmissao(first.emissao || new Date().toISOString().slice(0, 10))
@@ -240,10 +232,10 @@ function FormularioDuplicata() {
         setTituloFinId(t.id)
         setCodigoFin(String(t.legado_cod_duplicata ?? t.numero_duplicata ?? t.id.slice(0, 8)))
         if (t.contato_id) {
-          const { data: contato } = await supabase.from('contatos').select('id, tipo').eq('id', t.contato_id).maybeSingle()
+          const { data: contato } = await supabase.from('contatos').select('id, tipo, nome, razao_social, cpf_cnpj').eq('id', t.contato_id).maybeSingle()
           if (contato) {
             setTipoPessoa(contato.tipo === 'cliente' ? 'cliente' : 'fornecedor')
-            setPessoaId(contato.id)
+            setPessoa(contato as PessoaOpcao)
           }
         }
         const ps: any[] = data.parcelas || []
@@ -479,7 +471,6 @@ function FormularioDuplicata() {
     setSaving(true)
     try {
       const grupoContaId = contaGrupoId || crypto.randomUUID()
-      const pessoa = contatos.find((c) => c.id === pessoaId)
       const totalParcelas = parcelas.length
       const nomePagador = pessoa?.razao_social || pessoa?.nome || nomePagadorOriginal || ''
 
@@ -652,7 +643,7 @@ function FormularioDuplicata() {
                 value={tipoPessoa}
                 onValueChange={(v) => {
                   setTipoPessoa(v as 'fornecedor' | 'cliente')
-                  setPessoaId('')
+                  setPessoa(null)
                 }}
               >
                 <SelectTrigger className="h-7 text-xs bg-slate-50">
@@ -673,18 +664,7 @@ function FormularioDuplicata() {
               />
             </Field>
             <Field label={tipoPessoa === 'fornecedor' ? 'Fornecedor' : 'Cliente'} span={3}>
-              <Select value={pessoaId} onValueChange={setPessoaId}>
-                <SelectTrigger className="h-7 text-xs bg-slate-50">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {contatos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.razao_social || c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SeletorPessoa tipo={tipoPessoa} valor={pessoa} onChange={setPessoa} />
             </Field>
 
             <Field

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import SeletorPessoa, { type PessoaOpcao } from '@/components/duplicatas/SeletorPessoa'
 import { lancarAntecipacao } from '@/lib/financeiro-novo'
 
 // SPEC-270 Fase 1 (só Contas a Receber): lançar uma "Antecipação de pagamento" — não é duplicata.
@@ -30,14 +31,14 @@ export default function AntecipacaoForm() {
 
   const [empresas, setEmpresas] = useState<any[]>([])
   const [usuarios, setUsuarios] = useState<any[]>([])
-  const [clientes, setClientes] = useState<any[]>([])
   const [plano, setPlano] = useState<any[]>([])
 
   const [emissao, setEmissao] = useState(hoje())
   const [dataPagamento, setDataPagamento] = useState(hoje())
   const [empresaId, setEmpresaId] = useState('')
   const [perfil, setPerfil] = useState('')
-  const [clienteId, setClienteId] = useState('')
+  const [cliente, setCliente] = useState<PessoaOpcao | null>(null)
+  const clienteId = cliente?.id || ''
   const [responsavelId, setResponsavelId] = useState('')
   const [grupoId, setGrupoId] = useState('')
   const [subGrupoId, setSubGrupoId] = useState('')
@@ -50,12 +51,10 @@ export default function AntecipacaoForm() {
     Promise.all([
       supabase.from('empresas').select('id, nome').order('nome'),
       supabase.from('usuarios').select('id, nome').order('nome'),
-      supabase.from('contatos').select('id, nome, razao_social').eq('tipo', 'cliente').order('nome'),
       supabase.from('plano_de_contas').select('id, nome, nivel, parent_id, tipo').eq('ativo', true).order('nome'),
-    ]).then(([emp, usr, cli, pl]) => {
+    ]).then(([emp, usr, pl]) => {
       setEmpresas(emp.data || [])
       setUsuarios(usr.data || [])
-      setClientes(cli.data || [])
       setPlano(pl.data || [])
     })
   }, [])
@@ -134,10 +133,7 @@ export default function AntecipacaoForm() {
             </Select>
           </Campo>
           <Campo label="Cliente">
-            <Select value={clienteId} onValueChange={setClienteId}>
-              <SelectTrigger className="h-7 text-xs bg-slate-50"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent>{clientes.map((c) => <SelectItem key={c.id} value={c.id}>{c.razao_social || c.nome}</SelectItem>)}</SelectContent>
-            </Select>
+            <SeletorPessoa tipo="cliente" valor={cliente} onChange={setCliente} />
           </Campo>
           <Campo label="Responsável (equipe do orçamento)">
             <Select value={responsavelId} onValueChange={setResponsavelId}>
