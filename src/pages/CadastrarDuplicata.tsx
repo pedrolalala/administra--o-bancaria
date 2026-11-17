@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog'
 import { EH_PAGAR, NOME_OUTRO_SISTEMA, TIPO_OPERACAO, TIPO_ROTULO } from '@/lib/modo-sistema'
 import AntecipacaoForm from '@/components/duplicatas/AntecipacaoForm'
+import { cadastrarContaManual } from '@/lib/financeiro-novo'
 
 interface ParcelaLinha {
   // SPEC-165: id da linha já gravada (edição) e se ela já foi paga --
@@ -459,6 +460,50 @@ function FormularioDuplicata() {
         })
         if (error) throw error
         toast({ title: 'Conta alterada', description: 'A alteração e a justificativa ficaram registradas no log.' })
+        navigate('/duplicatas')
+      } catch (e: any) {
+        toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' })
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
+    // SPEC-322: Contas a Pagar NOVA conta nasce no financeiro novo (a antiga gravava só em `boletos`, sem espelho: não entrava em
+    // compensação nem nas demais telas do modelo novo). Edição de conta antiga segue pelo caminho de boletos.
+    if (EH_PAGAR && !isEditing) {
+      if (!pessoaId) {
+        toast({ title: 'Selecione o Fornecedor', description: 'Toda conta a pagar nova precisa da pessoa cadastrada.', variant: 'destructive' })
+        return
+      }
+      if (!apropriacaoId) {
+        toast({ title: 'Selecione a Apropriação', description: 'Escolha Grupo, Sub grupo e Apropriação.', variant: 'destructive' })
+        return
+      }
+      if (situacao !== 'Aberto') {
+        toast({ title: 'Cadastre como Aberto', description: 'Para registrar como pago, cadastre em aberto e dê a baixa na Consultar Duplicatas.', variant: 'destructive' })
+        return
+      }
+      setSaving(true)
+      try {
+        await cadastrarContaManual({
+          natureza: 'pagar',
+          empresaId,
+          perfil: perfilEmpresa || null,
+          contatoId: pessoaId,
+          planoContasId: apropriacaoId,
+          documento: nf || null,
+          descricao: referencia || null,
+          responsavelId: responsavelId || null,
+          parcelas: parcelas.map((p) => ({
+            vencimento: p.vencimento,
+            valor: parseFloat(p.valor),
+            emissao: dataEmissao,
+            // o modelo novo não tem campo de linha digitável na conta a pagar: vai junto na observação para não se perder
+            observacao: [observacao.trim(), p.linhaDigitavel ? `Linha digitável: ${p.linhaDigitavel}` : ''].filter(Boolean).join(' | ') || null,
+          })),
+        })
+        toast({ title: 'Sucesso', description: `${parcelas.length} parcela(s) salva(s).` })
         navigate('/duplicatas')
       } catch (e: any) {
         toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' })

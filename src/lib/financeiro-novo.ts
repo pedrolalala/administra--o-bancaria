@@ -138,7 +138,7 @@ export async function estornarParcelas(parcelaIds: string[], motivo: string): Pr
   if (!motivo.trim()) throw new Error('Informe o motivo do estorno.')
   const { data, error } = await (supabase as any)
     .from('financeiro_baixas')
-    .select('id, parcela_id, tipo, estorno_de, criado_em')
+    .select('id, parcela_id, tipo, estorno_de, criado_em, compensacao_id')
     .in('parcela_id', parcelaIds)
   if (error) throw error
   const linhas = (data || []) as any[]
@@ -146,11 +146,117 @@ export async function estornarParcelas(parcelaIds: string[], motivo: string): Pr
   const ativas = linhas
     .filter((b) => b.tipo !== 'estorno' && !jaEstornadas.has(b.id))
     .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
+  // SPEC-322: baixa de compensação (permuta) vale para as DUAS contas: estorna junto (a outra parcela também volta a abrir)
+  const compensacoes = new Set<string>()
   for (const b of ativas) {
+    if (b.compensacao_id) {
+      if (compensacoes.has(b.compensacao_id)) continue
+      compensacoes.add(b.compensacao_id)
+      const { error: e3 } = await (supabase as any).rpc('financeiro_estornar_compensacao', { p_compensacao: b.compensacao_id, p_motivo: motivo.trim() })
+      if (e3) throw e3
+      continue
+    }
     const { error: e2 } = await (supabase as any).rpc('financeiro_estornar', { p_baixa: b.id, p_motivo: motivo.trim() })
     if (e2) throw e2
   }
   return ativas.length
+}
+
+/** SPEC-322: cadastro manual no modelo novo (Contas a Pagar). Parcela nasce firme; a baixa é feita depois, na consulta. */
+export async function cadastrarContaManual(args: {
+  natureza: 'pagar' | 'receber'
+  empresaId: string
+  perfil: string | null
+  contatoId: string
+  planoContasId: string
+  documento: string | null
+  descricao: string | null
+  responsavelId: string | null
+  parcelas: { vencimento: string; valor: number; emissao: string; observacao?: string | null }[]
+}): Promise<string> {
+  const { data, error } = await (supabase as any).rpc('financeiro_cadastrar_conta_manual', {
+    p_titulo: {
+      natureza: args.natureza,
+      empresa_id: args.empresaId,
+      perfil: args.perfil,
+      contato_id: args.contatoId,
+      plano_contas_id: args.planoContasId,
+      documento: args.documento,
+      descricao: args.descricao,
+      responsavel_id: args.responsavelId,
+    },
+    p_parcelas: args.parcelas,
+  })
+  if (error) throw error
+  return data as string
+}
+
+export interface CandidataCompensacao {
+  parcela_id: string
+  titulo_id: string
+  natureza: 'pagar' | 'receber'
+  numero: number
+  vencimento: string
+  valor: number
+  saldo: number
+  documento: string | null
+  descricao: string | null
+}
+
+/** SPEC-322: contas abertas da MESMA pessoa/empresa, do lado oposto, que podem ser compensadas com a parcela. */
+export async function candidatasCompensacao(parcelaId: string): Promise<CandidataCompensacao[]> {
+  const { data, error } = await (supabase as any).rpc('financeiro_compensacao_candidatas', { p_parcela: parcelaId })
+  if (error) throw error
+  return (data || []).map((r: any) => ({ ...r, valor: Number(r.valor), saldo: Number(r.saldo) }))
+}
+
+/** SPEC-322: saldo em aberto de uma parcela do modelo novo. */
+export async function saldoDaParcela(parcelaId: string): Promise<number> {
+  const { data, error } = await (supabase as any).from('financeiro_parcelas').select('valor, valor_liquidado').eq('id', parcelaId).maybeSingle()
+  if (error) throw error
+  return data ? Number(data.valor) - Number(data.valor_liquidado) : 0
+}
+
+/** SPEC-322: compensa (permuta) uma conta a pagar com uma a receber da mesma pessoa. Sem dinheiro, sem conta bancária; motivo obrigatório. */
+export async function compensar(args: { parcelaPagar: string; parcelaReceber: string; valor: number; motivo: string; data: string }): Promise<string> {
+  if (!args.motivo.trim()) throw new Error('Informe o motivo da compensação.')
+  const { data, error } = await (supabase as any).rpc('financeiro_compensar', {
+    p_parcela_pagar: args.parcelaPagar,
+    p_parcela_receber: args.parcelaReceber,
+    p_valor: args.valor,
+    p_motivo: args.motivo.trim(),
+    p_data: args.data,
+  })
+  if (error) throw error
+  return data as string
+}
+
+/** SPEC-322: a partir de uma conta a RECEBER, registra o serviço (nova conta a pagar da mesma pessoa) e já compensa. */
+export async function compensarComNovaConta(args: {
+  parcelaReceber: string
+  valorConta: number
+  valorCompensado: number
+  planoContasId: string
+  descricao: string
+  documento: string
+  vencimento: string
+  motivo: string
+  data: string
+}): Promise<string> {
+  if (!args.motivo.trim()) throw new Error('Informe o motivo da compensação.')
+  const { data, error } = await (supabase as any).rpc('financeiro_compensar_nova_conta', {
+    p_parcela_receber: args.parcelaReceber,
+    p_valor_conta: args.valorConta,
+    p_valor_comp: args.valorCompensado,
+    p_plano_contas: args.planoContasId,
+    p_descricao: args.descricao.trim() || null,
+    p_documento: args.documento.trim() || null,
+    p_vencimento: args.vencimento,
+    p_motivo: args.motivo.trim(),
+    p_data: args.data,
+  })
+  if (error) throw error
+  return data as string
 }
 
 /** SPEC-270 Fase 1 (só Contas a Receber): lança uma antecipação de pagamento EM ABERTO no vencimento (SPEC-301: sem baixa automática). */

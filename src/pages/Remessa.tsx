@@ -151,6 +151,7 @@ export default function RemessaPage() {
       )
       .eq('tipo_operacao', 'CR')
       .in('status', ['Pendente', 'pendente_registro'])
+      .gt('valor', 0) // crédito/permuta (valor negativo) nunca vai para o banco
       .order('vencimento', { ascending: true })
 
     if (error) {

@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { differenceInDays, parseISO } from 'date-fns'
-import { Pencil, Search, Play, Handshake, Download, Info, Undo2, Ban } from 'lucide-react'
+import { Pencil, Search, Play, Handshake, Download, Info, Undo2, Ban, Scale } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
@@ -29,6 +29,7 @@ import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDia
 import { buscarDuplicatasNovas, mapaBoletoParcela, mapaBoletosDeAcordo } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 import { AcordoModal } from '@/components/duplicatas/AcordoModal'
+import { CompensarModal } from '@/components/duplicatas/CompensarModal'
 import { EditarContaModal } from '@/components/duplicatas/EditarContaModal'
 import { CancelarContaModal } from '@/components/duplicatas/CancelarContaModal'
 
@@ -47,6 +48,7 @@ export default function ConsultarDuplicatas() {
   const [showInfo, setShowInfo] = useState(false)
   const [showEstornar, setShowEstornar] = useState(false)
   const [showAcordo, setShowAcordo] = useState(false) // SPEC-287
+  const [showCompensar, setShowCompensar] = useState(false) // SPEC-322
   const [showEditarConta, setShowEditarConta] = useState(false) // SPEC-297
   const [showCancelarConta, setShowCancelarConta] = useState(false) // SPEC-297
   const [canceladasCarregadas, setCanceladasCarregadas] = useState(false) // SPEC-297
@@ -392,6 +394,29 @@ export default function ConsultarDuplicatas() {
     setShowAcordo(true)
   }
 
+  // SPEC-322: compensação (permuta) de UMA conta aberta do financeiro novo com a conta do outro lado da mesma pessoa
+  const handleCompensar = () => {
+    const sel = data.filter((d) => selecionadas.has(d.id))
+    if (sel.length !== 1) {
+      toast({ title: 'Selecione uma conta', description: 'A compensação parte de uma conta aberta por vez.', variant: 'destructive' })
+      return
+    }
+    const d = sel[0]
+    if (d.status === 'Pago' || ehCancelada(d.status)) {
+      toast({ title: 'Só conta em aberto', description: 'Pago ou cancelado não entra em compensação.', variant: 'destructive' })
+      return
+    }
+    if (!d._parcelaId) {
+      toast({ title: 'Compensação indisponível para esta duplicata', description: 'Ela não existe no financeiro novo (boleto antigo).', variant: 'destructive' })
+      return
+    }
+    if (!d.contato_id) {
+      toast({ title: 'Conta sem pessoa cadastrada', description: 'A compensação só vale entre contas da mesma pessoa cadastrada.', variant: 'destructive' })
+      return
+    }
+    setShowCompensar(true)
+  }
+
   // SPEC-297: cancelar conta(s) aberta(s) com justificativa (nada é apagado; fica no filtro Canceladas e no log)
   const handleCancelar = () => {
     if (selecionadas.size === 0) {
@@ -531,6 +556,15 @@ export default function ConsultarDuplicatas() {
           >
             <Handshake className="h-4 w-4" />
             <span className="text-[10px]">Acordo</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex flex-col gap-1 h-auto py-2 px-3 text-slate-600 hover:text-primary hover:bg-primary/5"
+            onClick={handleCompensar}
+          >
+            <Scale className="h-4 w-4" />
+            <span className="text-[10px]">Compensar</span>
           </Button>
           <Button
             variant="ghost"
@@ -998,6 +1032,15 @@ export default function ConsultarDuplicatas() {
         open={showAcordo}
         onClose={() => setShowAcordo(false)}
         duplicatas={data.filter((d) => selecionadas.has(d.id))}
+        onSuccess={() => {
+          setSelecionadas(new Set())
+          fetchData(pagasCarregadas)
+        }}
+      />
+      <CompensarModal
+        open={showCompensar}
+        onClose={() => setShowCompensar(false)}
+        duplicata={data.find((d) => selecionadas.has(d.id)) || null}
         onSuccess={() => {
           setSelecionadas(new Set())
           fetchData(pagasCarregadas)
