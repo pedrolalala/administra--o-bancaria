@@ -26,7 +26,7 @@ import { ExecutarBaixaModal } from '@/components/duplicatas/ExecutarBaixaModal'
 import { InfoDuplicataModal } from '@/components/duplicatas/InfoDuplicataModal'
 import { NOME_SISTEMA, TIPO_OPERACAO, EH_PAGAR } from '@/lib/modo-sistema'
 import { CampoPessoa, type PessoaSelecionada } from '@/components/BuscaPessoaDialog'
-import { buscarDuplicatasNovas, mapaBoletoParcela, mapaBoletosDeAcordo } from '@/lib/financeiro-novo'
+import { buscarDuplicatasNovas, mapaBoletoContato, mapaBoletoParcela, mapaBoletosDeAcordo } from '@/lib/financeiro-novo'
 import { EstornarBaixaModal } from '@/components/duplicatas/EstornarBaixaModal'
 import { AcordoModal } from '@/components/duplicatas/AcordoModal'
 import { CompensarModal } from '@/components/duplicatas/CompensarModal'
@@ -117,8 +117,10 @@ export default function ConsultarDuplicatas() {
     let doFinanceiro: any[] = []
     let mapaBoleto = new Map<string, string>()
     let boletosDeAcordo = new Map<string, string | null>()
+    let contatoDoBoleto = new Map<string, string>()
     try {
       mapaBoleto = await mapaBoletoParcela()
+      contatoDoBoleto = await mapaBoletoContato() // SPEC-331
       boletosDeAcordo = await mapaBoletosDeAcordo()
       doFinanceiro = await buscarDuplicatasNovas(comPagas, comCanceladas)
     } catch (e: any) {
@@ -126,7 +128,8 @@ export default function ConsultarDuplicatas() {
     }
     // SPEC-312: original de acordo (renegociada) = Pago com valor 0 na data do acordo, mesmo que o boleto antigo siga 'pendente_registro'
     const boletosComParcela = all.map((b: any) => {
-      const base = { ...b, _parcelaId: mapaBoleto.get(b.id) ?? null }
+      // SPEC-331: boleto da aprovação do orçamento vem sem contato_id; usa o da parcela do financeiro novo
+      const base = { ...b, contato_id: b.contato_id ?? contatoDoBoleto.get(b.id) ?? null, _parcelaId: mapaBoleto.get(b.id) ?? null }
       if (!boletosDeAcordo.has(b.id)) return base
       return { ...base, status: 'Pago', data_pagamento: boletosDeAcordo.get(b.id), valor_pago: 0, _acordoOriginal: true }
     })
@@ -391,6 +394,16 @@ export default function ConsultarDuplicatas() {
     const pessoas = new Set(sel.map((d) => d.contato_id ?? d.nome_pagador))
     if (pessoas.size > 1) {
       toast({ title: 'Pessoas diferentes na seleção', description: 'Um acordo junta parcelas de um só cliente (ou fornecedor).', variant: 'destructive' })
+      return
+    }
+    // SPEC-331: o banco também exige a mesma empresa; avisa aqui dizendo quais são
+    const empresasSel = Array.from(new Set(sel.map((d) => d.empresas?.nome).filter(Boolean)))
+    if (empresasSel.length > 1) {
+      toast({
+        title: 'Empresas diferentes na seleção',
+        description: `Um acordo junta parcelas de uma só empresa (${empresasSel.join(' e ')}). Desmarque as de outra empresa.`,
+        variant: 'destructive',
+      })
       return
     }
     setShowAcordo(true)

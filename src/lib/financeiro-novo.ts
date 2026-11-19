@@ -86,6 +86,29 @@ export async function mapaBoletoParcela(): Promise<Map<string, string>> {
   return new Map((data || []).map((r: any) => [r.boleto_id as string, r.parcela_id as string]))
 }
 
+/**
+ * SPEC-331: boleto -> contato (cliente/fornecedor) da parcela do modelo novo. O boleto criado na aprovação do orçamento
+ * não grava `contato_id`; sem isto a grade trata a linha do boleto (só o nome) e as outras parcelas da mesma pessoa
+ * (o código) como pessoas diferentes e o acordo é barrado.
+ */
+export async function mapaBoletoContato(): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>()
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await (supabase as any)
+      .from('vw_financeiro_duplicatas')
+      .select('boleto_id, contato_id')
+      .eq('tipo_operacao', TIPO_OPERACAO)
+      .not('boleto_id', 'is', null)
+      .not('contato_id', 'is', null)
+      .order('parcela_id', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const r of data || []) mapa.set(r.boleto_id as string, r.contato_id as string)
+    if (!data || data.length < PAGE) break
+  }
+  return mapa
+}
+
 /** SPEC-312: boleto (tabela antiga) cuja parcela foi renegociada num acordo -> data do acordo. A grade mostra a linha como Pago (valor pago 0) nessa data. */
 export async function mapaBoletosDeAcordo(): Promise<Map<string, string | null>> {
   const { data, error } = await (supabase as any)
