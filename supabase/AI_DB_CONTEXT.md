@@ -204,3 +204,11 @@ trigger. Ver `supabase/db/migrations/20260917_153_notas_fiscais_parcial_multipag
 - No Dashboard Financeiro o pagamento aparece pago em DESPESAS › PAGAMENTO ANTECIPADO
   (`vw_contas_pagar_pedidos_compra`, origem `pagamento_antecipado`). Esta tela (Contas em Aberto) continua lendo
   só `transacoes` (Connect).
+
+## SPEC-326 (19/11/2026) — Duplicata no nome de outro pagador (migration 392 APLICADA em SP em 19/11)
+
+- Quando o orçamento é faturado em nome de outro pagador (migration 391, ver o contexto de Orçamentos), o título do Contas a Receber e o boleto já nascem no **pagador**: em `vw_financeiro_duplicatas`, `contato_id` e `nome_pagador` são o pagador, **não o cliente do projeto**. Não assuma que `nome_pagador` é o cliente do orçamento.
+- A view ganhou 3 colunas no fim (as 37 originais não mudam): `pagador_diferente` (bool), `cliente_projeto_id` e `cliente_projeto_nome` (preenchidas só quando o pagador é diferente; nulas caso contrário).
+- Front: `paraLinhaDaGrade` (`src/lib/financeiro-novo.ts`) leva as 3 colunas; `ConsultarDuplicatas` e `BaixarDuplicata` mostram "cliente do projeto: X" sob o nome do pagador; `InfoDuplicataModal` mostra "Pessoa (pagador)" e "Cliente do projeto"; a busca por pessoa e a escolha de cadastro (`pessoaSel`) acham também pelo cliente do projeto. A consulta usa `select('*')`, então o front funciona antes e depois da migration.
+- Ao recriar `vw_financeiro_duplicatas` (drop + create), restaurar o ACL: `REVOKE ALL ... FROM PUBLIC, anon` e `GRANT ALL ... TO authenticated, service_role` (o Supabase concede privilégios padrão a objetos novos, inclusive ao `anon`). `CREATE OR REPLACE` só pode acrescentar colunas ao fim e preserva o ACL.
+- Pendente: conferir o CPF/CNPJ do pagador no layout CNAB/remessa com um boleto real; Contas em Aberto e Antecipações ainda só mostram o pagador.
