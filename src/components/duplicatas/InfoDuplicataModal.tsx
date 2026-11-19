@@ -36,7 +36,10 @@ export function InfoDuplicataModal({ open, onClose, duplicata }: InfoDuplicataMo
           </DialogTitle>
         </DialogHeader>
         <div className="text-sm">
-          <Row label="Pessoa" value={duplicata.nome_pagador} />
+          <Row label={duplicata.pagador_diferente ? 'Pessoa (pagador)' : 'Pessoa'} value={duplicata.nome_pagador} />
+          {duplicata.pagador_diferente && (
+            <Row label="Cliente do projeto" value={duplicata.cliente_projeto_nome} />
+          )}
           <Row label="Empresa" value={duplicata.empresas?.nome} />
           <Row
             label="Tipo"

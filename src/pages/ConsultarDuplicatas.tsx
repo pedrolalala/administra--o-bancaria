@@ -201,7 +201,8 @@ export default function ConsultarDuplicatas() {
             .replace(/\p{Diacritic}/gu, '')
             .toLowerCase()
         const terms = normalize(filtros.pessoa.trim()).split(/\s+/).filter(Boolean)
-        const haystack = normalize(d.nome_pagador || '')
+        // SPEC-326: também acha pelo cliente do projeto quando outro pagador foi faturado
+        const haystack = normalize(`${d.nome_pagador || ''} ${d.cliente_projeto_nome || ''}`)
         if (!terms.every((t) => haystack.includes(t))) return false
       }
       // SPEC-231 E1: só o cadastro escolhido (projeto específico, ou o cliente/fornecedor; duplicata antiga sem
@@ -212,6 +213,7 @@ export default function ConsultarDuplicatas() {
           if ((orc?.projeto_id ?? d.projeto_id) !== pessoaSel.projetoId) return false
         } else if (
           d.contato_id !== pessoaSel.contatoId &&
+          d.cliente_projeto_id !== pessoaSel.contatoId &&
           orc?.cliente_id !== pessoaSel.contatoId &&
           (d.nome_pagador || '').trim().toLowerCase() !== pessoaSel.nome.trim().toLowerCase()
         ) {
@@ -863,6 +865,14 @@ export default function ConsultarDuplicatas() {
                   <TableCell className="p-1 text-right border-r">{d.fatura || '-'}</TableCell>
                   <TableCell className="p-1 border-r truncate max-w-[200px] font-medium">
                     {d.nome_pagador}
+                    {d.pagador_diferente && (
+                      <div
+                        className="truncate text-[10px] font-normal text-amber-700"
+                        title={`Pagador diferente do cliente do projeto: ${d.cliente_projeto_nome || ''}`}
+                      >
+                        pagador · cliente do projeto: {d.cliente_projeto_nome || '—'}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="p-1 text-center border-r bg-teal-50/30 group-hover:bg-teal-50/50 transition-colors">
                     {formatDate(d.emissao || d.created_at)}

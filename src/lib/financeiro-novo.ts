@@ -51,6 +51,10 @@ export function paraLinhaDaGrade(r: any) {
     venda: r.venda || '',
     fatura: r.fatura || '',
     nome_pagador: r.nome_pagador || '',
+    // SPEC-326: a venda foi faturada no nome de OUTRO pagador (nome_pagador acima já é o pagador)
+    pagador_diferente: !!r.pagador_diferente,
+    cliente_projeto_id: r.cliente_projeto_id ?? null,
+    cliente_projeto_nome: r.cliente_projeto_nome ?? null,
     emissao: r.emissao,
     vencimento: r.vencimento,
     data_pagamento: r.data_pagamento,

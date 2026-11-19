@@ -374,7 +374,17 @@ export default function BaixarDuplicata() {
                       <TableCell className="p-1 font-mono">
                         {d.numero_documento || d.nosso_numero}
                       </TableCell>
-                      <TableCell className="p-1 truncate max-w-[160px]">{d.nome_pagador}</TableCell>
+                      <TableCell className="p-1 truncate max-w-[160px]">
+                        {d.nome_pagador}
+                        {d.pagador_diferente && (
+                          <div
+                            className="truncate text-[10px] text-amber-700"
+                            title={`Pagador diferente do cliente do projeto: ${d.cliente_projeto_nome || ''}`}
+                          >
+                            cliente do projeto: {d.cliente_projeto_nome || '—'}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="p-1 text-center">{formatDate(d.vencimento)}</TableCell>
                       <TableCell className="p-1 text-right font-mono">
                         {formatCurrency(d.valor)}
